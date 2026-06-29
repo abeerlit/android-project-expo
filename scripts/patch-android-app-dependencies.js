@@ -44,9 +44,7 @@ function patchAndroidAppDependencies() {
 const SUPPORT_EXCLUDES = `
 // voxo-support-excludes — avoid duplicate classes with androidx (react-native-push-notification)
 configurations.all {
-    exclude group: "com.android.support", module: "support-compat"
-    exclude group: "com.android.support", module: "support-v4"
-    exclude group: "com.android.support", module: "appcompat-v7"
+    exclude group: "com.android.support"
 }
 `;
 

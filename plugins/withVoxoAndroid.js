@@ -5,6 +5,7 @@ const { withCallKeepAndroid } = require("./withCallKeepAndroid.js");
 const { withFirebaseAndroid } = require("./withFirebaseAndroid.js");
 const { withMainApplicationPatch } = require("./withMainApplicationPatch.js");
 const { withVoxoNativeAndroid } = require("./withVoxoNativeAndroid.js");
+const { withVoxoAndroidGradle } = require("./withVoxoAndroidGradle.js");
 
 function withVoxoAndroid(config, options = {}) {
   const telephony = options.enableTelephony === true;
@@ -26,6 +27,11 @@ function withVoxoAndroid(config, options = {}) {
     enableMeetings: meetings
   });
   config = withCallKeepAndroid(config, { enableTelephony: telephony });
+  config = withVoxoAndroidGradle(config, {
+    enableTelephony: telephony,
+    enableNotifications: notifications,
+    enableNativeCopy: nativeCopy
+  });
   if (nativeCopy) {
     config = withVoxoNativeAndroid(config);
     config = withMainApplicationPatch(config, {

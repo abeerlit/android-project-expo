@@ -102,6 +102,12 @@ function patchAppBuildGradle() {
   if (!fs.existsSync(APP_BUILD)) return false;
   let body = fs.readFileSync(APP_BUILD, "utf8");
 
+  // Repair a prior bad packaging { } regex replacement (stray brace before androidResources).
+  body = body.replace(
+    /(\n    packaging \{[\s\S]*?\n    \})\n    \}(\n    androidResources)/,
+    "$1$2"
+  );
+
   if (!body.includes('abiFilters "armeabi-v7a", "arm64-v8a"')) {
     body = body.replace(
       /(versionName\s+"[^"]+"\s*\n)/,
@@ -109,40 +115,44 @@ function patchAppBuildGradle() {
     );
   }
 
-  if (!body.includes("useLegacyPackaging = false")) {
-    if (body.includes("packaging {")) {
-      body = body.replace(
-        /packaging\s*\{[^}]*\}/s,
-        `packaging {
-        jniLibs {
-            excludes += ["**/armeabi/**"]
-            useLegacyPackaging = false
-        }
-    }`
-      );
+  if (!body.includes('excludes += ["**/armeabi/**"]')) {
+    if (body.includes("jniLibs {")) {
+      body = body.replace(/(jniLibs\s*\{)/, `$1\n            excludes += ["**/armeabi/**"]`);
     } else if (body.includes("packagingOptions {")) {
       body = body.replace(
-        /packagingOptions\s*\{[^}]*\}/s,
-        `packaging {
+        /(packagingOptions\s*\{)/,
+        `$1
         jniLibs {
             excludes += ["**/armeabi/**"]
             useLegacyPackaging = false
-        }
-    }`
+        }`
       );
     } else {
       body = body.replace(
-        /(buildTypes\s*\{[\s\S]*?\n    \})/,
-        `$1
-    packaging {
+        /(\n    androidResources\s*\{)/,
+        `
+    packagingOptions {
         jniLibs {
             excludes += ["**/armeabi/**"]
             useLegacyPackaging = false
         }
-    }`
+    }$1`
       );
     }
   }
+
+  body = body.replace(
+    /useLegacyPackaging\s*=\s*false\s*\?:\s*false\)/g,
+    "useLegacyPackaging = false"
+  );
+  body = body.replace(
+    /useLegacyPackaging\s*\(findProperty\('expo\.useLegacyPackaging'\)\?\.toBoolean\(\)\s*\?:\s*false\)/g,
+    "useLegacyPackaging = false"
+  );
+  body = body.replace(
+    /useLegacyPackaging\s*\(findProperty\('expo\.useLegacyPackaging'\)\s*\?:\s*false\)/g,
+    "useLegacyPackaging = false"
+  );
 
   fs.writeFileSync(APP_BUILD, body);
   return true;
