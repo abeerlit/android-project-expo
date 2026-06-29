@@ -1,0 +1,47 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": false,
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "shared/*": ["src/shared/*"],
+      "store/*": ["src/store/*"],
+      "core/*": ["src/core/*"],
+      "features/*": ["src/features/*"],
+      "hooks/*": ["src/hooks/*"],
+      "components/*": ["src/components/*"],
+      "helpers/*": ["src/helpers/*"],
+      "api/*": ["src/api/*"],
+      "layouts/*": ["src/layouts/*"],
+      "navigations/*": ["src/navigations/*"],
+      "router/*": ["src/router/*"],
+      "types/*": ["src/types/*"],
+      "views/*": ["src/views/*"],
+      "assets/*": ["src/assets/*"],
+      "@api/*": ["src/api/*"],
+      "@assets/*": ["src/assets/*"],
+      "@components/*": ["src/components/*"],
+      "@composable/*": ["src/hooks/*"],
+      "@core/*": ["src/core/*"],
+      "@helpers/*": ["src/helpers/*"],
+      "@layouts/*": ["src/layouts/*"],
+      "@navigations/*": ["src/navigations/*"],
+      "@router/*": ["src/router/*"],
+      "@store/*": ["src/store/*"],
+      "@types/*": ["src/types/*"],
+      "@views/*": ["src/views/*"]
+    }
+  },
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    "expo-shell/**/*.ts",
+    "expo-shell/**/*.tsx",
+    "types/**/*.d.ts"
+  ],
+  "exclude": ["node_modules", "ios", "android"]
+}

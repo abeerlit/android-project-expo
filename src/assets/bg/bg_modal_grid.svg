@@ -1,0 +1,54 @@
+<svg stroke="currentColor" width="336" height="220" viewBox="0 0 336 220" fill="none" xmlns="http://www.w3.org/2000/svg">
+<mask id="mask0_8453_20903" style="mask-type:alpha" maskUnits="userSpaceOnUse" x="0" y="-116" width="336" height="336">
+<rect width="336" height="336" transform="translate(0 -116)" fill="url(#paint0_radial_8453_20903)" stroke-opacity="0"/>
+</mask>
+<g mask="url(#mask0_8453_20903)">
+<g clip-path="url(#clip0_8453_20903)">
+<g clip-path="url(#clip1_8453_20903)">
+<line x1="0.5" y1="-116" x2="0.5" y2="220" />
+<line x1="24.5" y1="-116" x2="24.5" y2="220"/>
+<line x1="48.5" y1="-116" x2="48.5" y2="220"/>
+<line x1="72.5" y1="-116" x2="72.5" y2="220" />
+<line x1="96.5" y1="-116" x2="96.5" y2="220" />
+<line x1="120.5" y1="-116" x2="120.5" y2="220" />
+<line x1="144.5" y1="-116" x2="144.5" y2="220" />
+<line x1="168.5" y1="-116" x2="168.5" y2="220" />
+<line x1="192.5" y1="-116" x2="192.5" y2="220" />
+<line x1="216.5" y1="-116" x2="216.5" y2="220" />
+<line x1="240.5" y1="-116" x2="240.5" y2="220" />
+<line x1="264.5" y1="-116" x2="264.5" y2="220" />
+<line x1="288.5" y1="-116" x2="288.5" y2="220" />
+<line x1="312.5" y1="-116" x2="312.5" y2="220" />
+</g>
+<rect x="0.5" y="-115.5" width="335" height="335" />
+<g clip-path="url(#clip2_8453_20903)">
+<line y1="3.5" x2="336" y2="3.5" />
+<line y1="27.5" x2="336" y2="27.5"/>
+<line y1="51.5" x2="336" y2="51.5" />
+<line y1="75.5" x2="336" y2="75.5" />
+<line y1="99.5" x2="336" y2="99.5" />
+<line y1="123.5" x2="336" y2="123.5" />
+<line y1="147.5" x2="336" y2="147.5"/>
+<line y1="171.5" x2="336" y2="171.5" />
+<line y1="195.5" x2="336" y2="195.5" />
+<line y1="219.5" x2="336" y2="219.5" />
+</g>
+<rect x="0.5" y="-115.5" width="335" height="335" />
+</g>
+</g>
+<defs>
+<radialGradient id="paint0_radial_8453_20903" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(168 168) rotate(90) scale(168 168)">
+<stop/>
+<stop offset="1" stop-opacity="0"/>
+</radialGradient>
+<clipPath id="clip0_8453_20903">
+<rect width="336" height="336" fill="white" transform="translate(0 -116)"/>
+</clipPath>
+<clipPath id="clip1_8453_20903">
+<rect y="-116" width="336" height="336" fill="white"/>
+</clipPath>
+<clipPath id="clip2_8453_20903">
+<rect y="-116" width="336" height="336" fill="white"/>
+</clipPath>
+</defs>
+</svg>

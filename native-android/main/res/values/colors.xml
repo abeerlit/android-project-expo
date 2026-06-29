@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="background_bg_primary">#fff</color> <!-- White background for splash screen -->
+    <color name="primaryColor">#6200EE</color> <!-- Primary theme color -->
+    <color name="primaryDarkColor">#3700B3</color> <!-- Dark variant of primary color -->
+    <color name="accentColor">#03DAC5</color> <!-- Accent color -->
+    <!-- Incoming call screen -->
+    <color name="voxomobile_black">#04171F</color>
+    <color name="colorAccent">#000000</color>
+    <color name="white">#ffffff</color>
+    <color name="black">#000000</color>
+    <color name="red">#f54d43</color>
+    <color name="green">#28c350</color>
+    <color name="notification_text">#FFFFFF</color>
+    <color name="notification_text_secondary">#B3FFFFFF</color>
+    <color name="black_overlay">#66000000</color>
+    <color name="text">#000000</color>
+</resources>

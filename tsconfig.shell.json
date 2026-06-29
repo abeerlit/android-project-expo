@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+    "expo-shell/**/*.ts",
+    "expo-shell/**/*.tsx",
+    "app.config.ts",
+    "types/**/*.d.ts"
+  ],
+  "exclude": ["node_modules", "ios", "android", "src"]
+}

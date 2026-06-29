@@ -1,0 +1,98 @@
+{
+  "project_info": {
+    "project_number": "381032391922",
+    "firebase_url": "https://voxo-5060-default-rtdb.firebaseio.com",
+    "project_id": "voxo-5060",
+    "storage_bucket": "voxo-5060.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:381032391922:android:34116f62ab503ecf115c6b",
+        "android_client_info": {
+          "package_name": "co.voxo.android"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "381032391922-35uqf3vondp5jm243juv8uv2b9fvi9av.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "co.voxo.android",
+            "certificate_hash": "9247b4e50317b2328edefdf862d06c02a5f3b0f6"
+          }
+        },
+        {
+          "client_id": "381032391922-59qcld9gm5sp1e6b6a3l81huef0pjdei.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "co.voxo.android",
+            "certificate_hash": "a8f162e96f2ff31de09edcea023f7ecb53cfddd1"
+          }
+        },
+        {
+          "client_id": "381032391922-kbgf8gb59eb90unflj8lmgp4f3uk0mui.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "co.voxo.android",
+            "certificate_hash": "a5c9075ae2721eb1160919ec9189a1aa1bac0908"
+          }
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBKwnOChUrd12iL4RkFjBAQPaUifoBSbLA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "381032391922-98ncu4l1m6h6222pia9s9rilel803tsh.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "381032391922-hg2uocpbhgh2hr8kimv4ue5ta41n7isn.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "co.voxo.voxo-ios"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:381032391922:android:d03ebf2dc416b342115c6b",
+        "android_client_info": {
+          "package_name": "com.voxo.voxo.android"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBKwnOChUrd12iL4RkFjBAQPaUifoBSbLA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "381032391922-98ncu4l1m6h6222pia9s9rilel803tsh.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "381032391922-hg2uocpbhgh2hr8kimv4ue5ta41n7isn.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "co.voxo.voxo-ios"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
