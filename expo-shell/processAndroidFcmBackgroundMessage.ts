@@ -409,6 +409,37 @@ export async function processAndroidFcmBackgroundMessage(
     return;
   }
 
+  const isMissedCall =
+    clickAction === "CALL-EVENT-MISSED" ||
+    clickAction === "MISSED-CALL" ||
+    clickAction === "missed-call" ||
+    clickAction === "MISSED-CALL-RECEIVED" ||
+    vmPayloadType === "missed_call";
+
+  if (isMissedCall) {
+    const { shouldSuppressMissedCallAfterUserDecline } =
+      require("core/softphone/androidPendingDecline.ts") as typeof import("../src/core/softphone/androidPendingDecline.ts");
+    const missedCallUuid = data.callUUID || data.callUuid;
+    const missedCaller =
+      remoteMessage.notification?.title || data.title || data.callerNumber;
+    if (
+      shouldSuppressMissedCallAfterUserDecline({
+        callUUID: missedCallUuid,
+        callerNumber: missedCaller
+      })
+    ) {
+      logRelease(
+        "🚫 [FCM Background] suppressing missed-call FCM — user declined recently",
+        { missedCallUuid, missedCaller }
+      );
+      logAndroidFcmProcessorStep("skip_missed_call_user_declined", {
+        missedCallUuid,
+        missedCaller
+      });
+      return;
+    }
+  }
+
   if (isSms) {
     logRelease("📱 [FCM Background] SMS — JS handler (toggle controls tray)", {
       messageId: remoteMessage.messageId,

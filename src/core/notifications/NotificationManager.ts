@@ -6,6 +6,7 @@ import VoipPushNotification from "react-native-voip-push-notification";
 import VoxoNotificationManager from "./VoxoNotificationManager";
 import notifee, { AndroidImportance, EventType } from "@notifee/react-native";
 import { VoipBridge } from "../softphone/VoipBridge";
+import { shouldSuppressMissedCallAfterUserDecline } from "../softphone/androidPendingDecline.ts";
 import {
   SlimSipClient,
   SipClientSettings
@@ -2766,6 +2767,25 @@ class NotificationManager {
           notificationData.click_action || "CALL-EVENT-MISSED";
         notificationData.vm_payload_type =
           notificationData.vm_payload_type || "missed_call";
+
+        if (Platform.OS === "android") {
+          const missedCaller =
+            remoteMessage.notification?.title ||
+            remoteMessage.data?.title ||
+            remoteMessage.data?.callerNumber;
+          if (
+            shouldSuppressMissedCallAfterUserDecline({
+              callUUID: notificationData.callUUID,
+              callerNumber: missedCaller
+            })
+          ) {
+            console.log(
+              "🚫 [displayNotification] suppressing missed-call — user declined recently",
+              { callUUID: notificationData.callUUID, missedCaller }
+            );
+            return;
+          }
+        }
       } else {
         // Default processing for other notification types
         const processed = this.processNotificationContent(remoteMessage);

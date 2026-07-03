@@ -11,6 +11,7 @@ import {
 } from "shared/api/call-actions/methods.ts";
 import { isRegistererTerminatedError } from "./sipRegistererErrors.ts";
 import { getAppDisplayName } from "shared/branding/appBrand.ts";
+import { consumeAndroidPendingDecline } from "./androidPendingDecline.ts";
 
 const logger = new Logger("SippyCup: ");
 
@@ -100,6 +101,19 @@ export class SippyCup extends EventEmitter {
 
     // Set up event listeners for call state changes
     this.on("incomingCall", (callId, callInfo) => {
+      const callUuid = callInfo.callUuid || callId;
+      if (
+        Platform.OS === "android" &&
+        consumeAndroidPendingDecline(callUuid)
+      ) {
+        console.warn(
+          `📞 [SippyCup] Auto-declining late INVITE for user-declined call ${callUuid}`
+        );
+        this.declineCall(callId).catch((error) => {
+          console.error("Error auto-declining pending-decline call:", error);
+        });
+        return;
+      }
       this.ensureNativeReady()
         .then(() => this.nativeIntegration.displayIncomingCall(callId, callInfo))
         .catch((error) => {

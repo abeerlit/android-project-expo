@@ -1228,7 +1228,11 @@ export const SoftphoneProvider: React.FC<{ children: React.ReactNode }> = ({
           try {
             const cup = sippyCupRef.current;
             if (cup) {
-              await cup.hangupCall(callId);
+              try {
+                await cup.declineCall(callId);
+              } catch {
+                await cup.hangupCall(callId);
+              }
             }
           } catch (e) {
             console.warn(

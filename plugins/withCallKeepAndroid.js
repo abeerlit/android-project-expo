@@ -49,6 +49,7 @@ function withCallKeepAndroid(config, options = {}) {
         "android:launchMode": "singleTask",
         "android:excludeFromRecents": "true",
         "android:noHistory": "true",
+        "android:taskAffinity": "",
         "android:showOnLockScreen": "true",
         "android:configChanges": "orientation",
         "android:screenOrientation": "portrait",

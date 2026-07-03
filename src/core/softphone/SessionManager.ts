@@ -28,6 +28,15 @@ import {
   getDesiredCallSpeaker,
   recoverCustomNotificationPlayout
 } from "./androidCallAudio.ts";
+import { markAndroidUserDeclinedCall } from "./androidPendingDecline.ts";
+
+/** SIP response for user-initiated decline (603 — not 480, which servers treat as no-answer). */
+const INCOMING_DECLINE_REJECT = {
+  statusCode: 603,
+  reasonPhrase: "Decline"
+} as const;
+
+const WAKEUP_UA_STOP_DELAY_MS = 800;
 import {
   SipConfig,
   CallState,
@@ -318,7 +327,9 @@ export class SessionManager {
             console.warn(
               "[SessionManager] Rejecting INVITE on primary UA (Android FCM-only inbound policy)"
             );
-            invitation.reject().catch(() => {});
+            invitation
+              .reject({ statusCode: 486, reasonPhrase: "Busy Here" })
+              .catch(() => {});
             return;
           }
           this.handleIncomingCall(invitation);
@@ -837,7 +848,16 @@ export class SessionManager {
     }
 
     try {
-      await (session as Invitation).reject();
+      await (session as Invitation).reject(INCOMING_DECLINE_REJECT);
+
+      const callInfo = managedSession.getCallInfo();
+      markAndroidUserDeclinedCall({
+        callUuid: callInfo.callUuid,
+        sipCallId: canonicalCallId,
+        callerNumber:
+          callInfo.remoteUri?.match(/^sip:(.+)@/)?.[1] ||
+          callInfo.remoteDisplayName
+      });
 
       // Update call state
       managedSession.setCallState(CallState.ENDED);
@@ -910,7 +930,7 @@ export class SessionManager {
           console.log(
             `Rejecting incoming call ${canonicalCallId} in ${sessionState} state`
           );
-          await session.reject();
+          await session.reject(INCOMING_DECLINE_REJECT);
         } else if (sessionState === SessionState.Established) {
           // Hang up established incoming call
           console.log(`Hanging up established incoming call ${canonicalCallId}`);
@@ -1863,14 +1883,16 @@ export class SessionManager {
               const release = managedSession.getWakeReleaseBeforeUaStop?.();
               const finishStop = () => {
                 console.log(
-                  "[SessionManager] Stopping WakeUp UA for terminated session"
+                  "[SessionManager] Stopping WakeUp UA for terminated session (delayed for SIP ACK)"
                 );
-                try {
-                  ua.stop();
-                } catch (e) {
-                  console.error("Error stopping wake-up UA:", e);
-                }
-                this.wakeUpUAs.delete(ua);
+                setTimeout(() => {
+                  try {
+                    ua.stop();
+                  } catch (e) {
+                    console.error("Error stopping wake-up UA:", e);
+                  }
+                  this.wakeUpUAs.delete(ua);
+                }, WAKEUP_UA_STOP_DELAY_MS);
               };
               if (release) {
                 void release().finally(() => finishStop());

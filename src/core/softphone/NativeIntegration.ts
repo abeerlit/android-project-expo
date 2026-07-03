@@ -13,6 +13,7 @@ import { v4 as uuid } from "uuid";
 import { Logger } from "shared/utils/Logger.ts";
 import { hasPendingSipSession } from "./pendingSipSessions";
 import { VoipBridge } from "./VoipBridge";
+import { markAndroidPendingDecline, markAndroidUserDeclinedCall } from "./androidPendingDecline.ts";
 import BackgroundTaskManager from "../background/BackgroundTaskManager.ts";
 import {
   getDesiredCallSpeaker,
@@ -300,9 +301,23 @@ export class NativeIntegration {
                   );
                   return;
                 }
+                // Dismiss UI immediately; mark so a late INVITE is auto-declined.
+                markAndroidPendingDecline(callUUID);
+                markAndroidUserDeclinedCall({
+                  callUuid: callUUID,
+                  sipCallId: callId,
+                  callerNumber: callerNumber
+                });
+                const appInForeground = AppState.currentState === "active";
+                Notifications.reportIncomingCallCancelled?.(
+                  callUUID,
+                  appInForeground
+                );
                 const voipBridge = VoipBridge.getInstance();
-                // VoipBridge tracks FCM UUID; callId is often the composite SessionManager id — use callUUID first.
-                if (voipBridge.isVoipCall(callUUID)) {
+                // Prefer direct SIP decline on mapped session (603 via SessionManager).
+                if (this.activeCalls.has(callUUID)) {
+                  this.onEndCall(callId);
+                } else if (voipBridge.isVoipCall(callUUID)) {
                   voipBridge.handleCallEnd(callUUID);
                 } else if (voipBridge.isVoipCall(callId)) {
                   voipBridge.handleCallEnd(callId);
@@ -316,8 +331,6 @@ export class NativeIntegration {
                 } else {
                   this.onEndCall(callId);
                 }
-                const appInForeground = AppState.currentState === "active";
-                Notifications.reportIncomingCallCancelled?.(callUUID, appInForeground);
                 this.activeCalls.delete(callUUID);
                 this.androidCustomNotificationCalls.delete(callUUID);
               }
