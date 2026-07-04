@@ -1,9 +1,10 @@
 // React Imports
-import { useSelector } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getCalls } from "shared/api/inbox/methods.ts";
 import { useSoftphone } from "core/softphone/useSoftphone.ts";
+import * as directoryActions from "store/directory/actions.ts";
 
 // Type Imports
 import React from "react";
@@ -21,6 +22,7 @@ import { InboxSkeletonLoader } from "features/inbox/components/InboxSkeletonLoad
 export function InboxCalls() {
   // Constants
   const logger = new Logger("Calls: ");
+  const dispatch = useDispatch();
   const queryClient = useQueryClient();
   const { activeCallId } = useSoftphone();
   const prevActiveCallIdRef = useRef<string | undefined>(undefined);
@@ -29,12 +31,49 @@ export function InboxCalls() {
   const token = useSelector(
     ({ authReducer }: State) => authReducer.accessToken
   );
+  const directory = useSelector(
+    ({ directoryReducer }: State) => directoryReducer.directory
+  );
+  const personalContacts = useSelector(
+    ({ directoryReducer }: State) => directoryReducer.personalContacts ?? []
+  );
+  const companyContacts = useSelector(
+    ({ directoryReducer }: State) => directoryReducer.companyContacts ?? []
+  );
+  const phoneContacts = useSelector(
+    ({ directoryReducer }: State) => directoryReducer.phoneContacts ?? []
+  );
+  const directoryLoading = useSelector(
+    ({ directoryReducer }: State) => directoryReducer.loading.directory
+  );
+  const companyContactsLoading = useSelector(
+    ({ directoryReducer }: State) => directoryReducer.loading.company
+  );
+  const personalContactsLoading = useSelector(
+    ({ directoryReducer }: State) => directoryReducer.loading.personal
+  );
+  const phoneContactsLoading = useSelector(
+    ({ directoryReducer }: State) => directoryReducer.loading.phoneContacts
+  );
 
   // Local State
   const [page, setPage] = useState(1);
   const [allData, setAllData] = useState<CallData[]>([]);
   const [isFetchingMore, setIsFetchingMore] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+
+  const hasDirectoryData = directory.length > 0 || personalContacts.length > 0 || companyContacts.length > 0 || phoneContacts.length > 0;
+  const isDirectoryLoading = directoryLoading || companyContactsLoading || personalContactsLoading || phoneContactsLoading;
+
+  useEffect(() => {
+    if (token && !hasDirectoryData && !isDirectoryLoading) {
+      logger.debug("Fetching directory data for contact lookup");
+      dispatch({ type: directoryActions.FETCH_DIRECTORY });
+      dispatch({ type: directoryActions.FETCH_COMPANY_CONTACTS });
+      dispatch({ type: directoryActions.FETCH_PERSONAL_CONTACTS });
+      dispatch({ type: directoryActions.FETCH_PHONE_CONTACTS });
+    }
+  }, [token, hasDirectoryData, isDirectoryLoading, dispatch]);
 
   // Methods
   // Handle scroll up refresh
@@ -67,7 +106,8 @@ export function InboxCalls() {
   const { data, isFetching } = useQuery<CallData[]>({
     queryKey: ["calls", page],
     queryFn: () => fetchCalls(page),
-    placeholderData: (previousData) => previousData
+    placeholderData: (previousData) => previousData,
+    enabled: hasDirectoryData || !isDirectoryLoading
   });
 
   // Refresh calls only when returning from a call (call ended), not on every focus
@@ -80,8 +120,8 @@ export function InboxCalls() {
   }, [activeCallId, queryClient]);
 
   useEffect(() => {
-    if (isFetching) setIsFetchingMore(true);
-  }, [isFetching]);
+    if (isFetching || isDirectoryLoading) setIsFetchingMore(true);
+  }, [isFetching, isDirectoryLoading]);
 
   useEffect(() => {
     if (data) {
@@ -112,7 +152,7 @@ export function InboxCalls() {
         data={allData}
         onRefresh={onRefresh}
         refreshing={refreshing}
-        loading={isFetching}
+        loading={isFetching || (isDirectoryLoading && !hasDirectoryData)}
         skeletonRowsAmount={10}
         skeletonRow={<InboxSkeletonLoader />}
         ListEmptyComponent={
