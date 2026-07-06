@@ -262,6 +262,10 @@ export class NativeIntegration {
           return callUUID;
         }
 
+        // Clear stale JS ringback before native notification + ring.
+        InCallManager.stopRingtone();
+        InCallManager.stopRingback();
+
         // Register for Answer/Reject before showing notification
         if (Notifications?.getIncomingCallNotificationResult) {
           Notifications.getIncomingCallNotificationResult(callUUID).then(
@@ -437,37 +441,24 @@ export class NativeIntegration {
         !!androidNotifications?.postIncomingCallNotification;
 
       if (useNativeAndroidIncomingRing) {
-        InCallManager.stopRingtone();
-        InCallManager.stopRingback();
-        try {
-          InCallManager.stop();
-        } catch {
-          /* ignore */
-        }
+        // Native player owns ring — InCallManager.stop() kills it on many OEMs.
+        console.log(
+          "🔊 [NativeIntegration] native IncomingCallRingtonePlayer active (no InCallManager.stop)"
+        );
+      } else if (Platform.OS === "android") {
+        InCallManager.stop();
+        InCallManager.startRingtone("_DEFAULT_", [0, 1000, 500, 1000], "default", -1);
       } else {
-        // Ensure clean audio state before starting ringtone (prevents overlap from previous call)
         InCallManager.stopRingtone();
         InCallManager.stopRingback();
         InCallManager.stop();
-        // Play ringtone for incoming call (Android: _DEFAULT_, iOS: _BUNDLE_ incallmanager_ringtone.mp3)
-        const ringtone = Platform.OS === "android" ? "_DEFAULT_" : "_BUNDLE_";
-        if (Platform.OS === "ios") {
-          console.warn(
-            `🔊 [NI-RINGBACK] ${new Date().toISOString()} displayIncomingCall: iOS starting ringtone (_BUNDLE_)`
-          );
-        }
-        // Android VibrationEffect requires at least one non-zero timing — never pass []. Use valid pattern or undefined for no vibration.
-        const vibratePattern: number | number[] =
-          Platform.OS === "android"
-            ? [0, 1000, 500, 1000] // delay 0ms, vibrate 1s, pause 500ms, vibrate 1s (repeat until stop)
-            : 0;
-
-        InCallManager.startRingtone(ringtone, vibratePattern, "default", -1);
-        if (Platform.OS === "ios") {
-          console.warn(
-            `🔊 [NI-RINGBACK] ${new Date().toISOString()} displayIncomingCall: startRingtone() done`
-          );
-        }
+        console.warn(
+          `🔊 [NI-RINGBACK] ${new Date().toISOString()} displayIncomingCall: iOS starting ringtone (_BUNDLE_)`
+        );
+        InCallManager.startRingtone("_BUNDLE_", 0, "default", -1);
+        console.warn(
+          `🔊 [NI-RINGBACK] ${new Date().toISOString()} displayIncomingCall: startRingtone() done`
+        );
       }
 
       // Map the native call UUID to the SIP call ID
