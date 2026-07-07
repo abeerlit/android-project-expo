@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import React, { useState, useMemo, useCallback, useRef } from "react";
 import {
   View,
   StyleSheet,
@@ -84,7 +84,6 @@ export function DialerKeypad() {
   const navigation = useNavigation();
   const inputRef = useRef<TextInput>(null);
   const [phoneNumber, setPhoneNumber] = useState("");
-  const [lastDialedNumber, setLastDialedNumber] = useState("");
   const { makeCall, isInitializing, isRegistering, activeCallId, hasOngoingCall } =
     useSoftphone();
 
@@ -210,22 +209,6 @@ export function DialerKeypad() {
     setPhoneNumber(contact.number.replace(/\D/g, ""));
   }, []);
 
-  // Load last dialed number on component mount
-  useEffect(() => {
-    const loadLastDialedNumber = async () => {
-      try {
-        const savedNumber = await mmkvStorage.getItem(LAST_DIALED_NUMBER_KEY);
-        if (savedNumber) {
-          setLastDialedNumber(savedNumber);
-        }
-      } catch (error) {
-        console.error("Error loading last dialed number:", error);
-      }
-    };
-
-    loadLastDialedNumber();
-  }, []);
-
   const handleKeypadPress = (digit: string) => {
     if (phoneNumber.length < 15) {
       setPhoneNumber((prev) => prev + digit);
@@ -258,15 +241,8 @@ export function DialerKeypad() {
       return;
     }
 
-    // Determine which number to call
     const numberToCall = phoneNumber.trim();
-
-    // If no input, use last dialed number (redial)
     if (!numberToCall) {
-      if (!lastDialedNumber) {
-        return;
-      }
-      setPhoneNumber(lastDialedNumber);
       return;
     }
 
@@ -309,11 +285,7 @@ export function DialerKeypad() {
         }
       });
 
-      // Save as last dialed number if it's a new number
-      if (phoneNumber.trim()) {
-        await mmkvStorage.setItem(LAST_DIALED_NUMBER_KEY, numberToCall);
-        setLastDialedNumber(numberToCall);
-      }
+      await mmkvStorage.setItem(LAST_DIALED_NUMBER_KEY, numberToCall);
 
       // Clear the input field
       setPhoneNumber("");
@@ -515,23 +487,18 @@ export function DialerKeypad() {
         <Button
           type="primary"
           onPress={handleCall}
-          disabled={
-            (!phoneNumber.trim() && !lastDialedNumber) ||
-            isInitializing ||
-            isRegistering
-          }
+          disabled={!phoneNumber.trim()}
           loading={
             isInitializing || isRegistering || activeCallId === "dialing"
           }
           containerStyle={[
             styles.callButton,
             {
-              backgroundColor:
-                !phoneNumber.trim() && !lastDialedNumber
-                  ? theme.colors["color-colors-background-bg-disabled"]
-                  : theme.colors[
-                      "color-component-colors-components-buttons-primary-button-primary-bg"
-                    ]
+              backgroundColor: !phoneNumber.trim()
+                ? theme.colors["color-colors-background-bg-disabled"]
+                : theme.colors[
+                    "color-component-colors-components-buttons-primary-button-primary-bg"
+                  ]
             }
           ]}
           size={18}
