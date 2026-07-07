@@ -29,8 +29,7 @@ const CHAT_LINKED_NATIVE_MODULES = new Set([
   "react-native-fs",
   "react-native-video",
   "react-native-image-modal",
-  "@react-native-camera-roll/camera-roll",
-  "@giphy/react-native-sdk"
+  "@react-native-camera-roll/camera-roll"
 ]);
 
 /** Inbox voicemail/recordings playback — linked in the dev client binary. */
@@ -54,8 +53,7 @@ const UNLINKED_NATIVE_MODULES = {
   "react-native-skeleton-placeholder": "skeleton-placeholder.stub.tsx",
   "react-native-advanced-checkbox": "advanced-checkbox.stub.tsx",
   "react-native-system-navigation-bar": "system-navigation-bar.stub.ts",
-  "@react-native-community/slider": "slider.stub.tsx",
-  "@giphy/react-native-sdk": "giphy.stub.ts"
+  "@react-native-community/slider": "slider.stub.tsx"
 };
 
 function getUnlinkedStubPath(moduleName) {

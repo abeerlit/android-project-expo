@@ -48,6 +48,19 @@ function withVoxoAndroidGradle(config, options = {}) {
         }
       }
 
+      try {
+        const { refreshAndroidAutolinking } = load("refresh-android-autolinking.js");
+        await refreshAndroidAutolinking();
+      } catch (e) {
+        console.warn("[withVoxoAndroidGradle] refresh autolinking:", e.message);
+      }
+
+      try {
+        load("patch-android-release-signing.js").patchAndroidReleaseSigning();
+      } catch (e) {
+        console.warn("[withVoxoAndroidGradle] release signing:", e.message);
+      }
+
       return cfg;
     }
   ]);

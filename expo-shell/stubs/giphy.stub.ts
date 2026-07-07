@@ -1,5 +1,5 @@
 /**
- * Stub until dev client is rebuilt with @giphy/react-native-sdk linked (EXPO_PUBLIC_CHAT_NATIVE=1).
+ * Stub when @giphy/react-native-sdk is not linked in the native binary.
  */
 import { toast } from "@backpackapp-io/react-native-toast";
 
@@ -17,9 +17,7 @@ const listeners: Record<string, Set<Listener>> = {
 };
 
 function notifyUnavailable() {
-  toast.error(
-    "GIF picker is not available in this dev build. Rebuild with native chat enabled."
-  );
+  toast.error("GIF picker is unavailable in this build.");
 }
 
 export class GiphySDK {

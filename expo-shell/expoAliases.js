@@ -73,8 +73,21 @@ function getNativeRealAliases() {
     "react-native-incall-manager-real": path.join(
       projectRoot,
       "node_modules/react-native-incall-manager"
+    ),
+    "@giphy/react-native-sdk-real": path.join(
+      projectRoot,
+      "node_modules/@giphy/react-native-sdk"
     )
   };
+}
+
+/** Avoid TurboModuleRegistry.getEnforcing crash when native Giphy is not linked. */
+function applyGiphyAlias(aliases) {
+  aliases["@giphy/react-native-sdk"] = path.join(shimsDir, "giphy.shim.ts");
+  aliases["@giphy/react-native-sdk-real"] = path.join(
+    projectRoot,
+    "node_modules/@giphy/react-native-sdk"
+  );
 }
 
 function getWebrtcTrackEventAlias() {
@@ -195,6 +208,7 @@ function getBabelAliases() {
 
   applyExpoSoftphoneAliases(aliases);
   applyMmkvCompatAlias(aliases);
+  applyGiphyAlias(aliases);
   applyNotificationAliases(aliases, stubs);
   applyTelephonyAliases(aliases);
   applyMeetingsAliases(aliases);
@@ -257,6 +271,9 @@ function resolveDailyWebRtcMetro(moduleName) {
 function resolveMetroStub(moduleName, stubs, platform) {
   if (moduleName === "react-native-mmkv") {
     return path.join(shimsDir, "mmkv.shim.ts");
+  }
+  if (moduleName === "@giphy/react-native-sdk") {
+    return path.join(shimsDir, "giphy.shim.ts");
   }
   if (!useExpoMeetingsStub()) {
     const daily = resolveDailyWebRtcMetro(moduleName);

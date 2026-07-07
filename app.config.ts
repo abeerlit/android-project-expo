@@ -45,6 +45,10 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     process.env.EXPO_PUBLIC_MEETINGS_NATIVE === "true" ||
     nativeTelephony;
 
+  const chatNative =
+    process.env.EXPO_PUBLIC_CHAT_NATIVE === "1" ||
+    process.env.EXPO_PUBLIC_CHAT_NATIVE === "true";
+
   const configExtra = config.extra as { eas?: { projectId?: string } } | undefined;
   const existingEas = configExtra?.eas ?? {};
   const easProjectId =
@@ -57,7 +61,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     owner: process.env.EXPO_OWNER ?? config.owner ?? "voxo",
     name: displayName,
     slug: easProjectSlug,
-    version: "2.0.45",
+    version: "2.0.46",
     orientation: "default",
     icon: iconPath,
     scheme: packageName,
@@ -70,7 +74,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     },
     android: {
       package: packageName,
-      versionCode: 133,
+      versionCode: 134,
       adaptiveIcon: {
         foregroundImage: iconPath,
         backgroundColor: splashBackground
@@ -96,7 +100,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
           imageWidth: 200
         }
       ],
-      "@giphy/react-native-sdk",
+      ...(chatNative ? ["@giphy/react-native-sdk"] : []),
       [
         "react-native-permissions",
         {
@@ -148,9 +152,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       },
       EXPO_PUBLIC_NATIVE_TELEPHONY: nativeTelephony,
       EXPO_PUBLIC_NATIVE_NOTIFICATIONS: nativeNotifications,
-      EXPO_PUBLIC_CHAT_NATIVE:
-        process.env.EXPO_PUBLIC_CHAT_NATIVE === "1" ||
-        process.env.EXPO_PUBLIC_CHAT_NATIVE === "true",
+      EXPO_PUBLIC_CHAT_NATIVE: chatNative,
       EXPO_PUBLIC_MEETINGS_NATIVE:
         process.env.EXPO_PUBLIC_MEETINGS_NATIVE === "1" ||
         process.env.EXPO_PUBLIC_MEETINGS_NATIVE === "true",

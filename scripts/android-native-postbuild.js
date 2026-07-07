@@ -117,6 +117,12 @@ function runPostPrebuildFixes(options = {}) {
     console.warn("[android-native-postbuild] 16kb page size:", e.message);
   }
 
+  try {
+    require("./patch-android-release-signing.js").patchAndroidReleaseSigning();
+  } catch (e) {
+    console.warn("[android-native-postbuild] release signing:", e.message);
+  }
+
   return true;
 }
 
