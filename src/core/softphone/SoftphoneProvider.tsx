@@ -468,6 +468,7 @@ export const SoftphoneProvider: React.FC<{ children: React.ReactNode }> = ({
     config: null,
     calls: {},
     activeCallId: undefined,
+    hasOngoingCall: false,
     error: undefined
   });
 
@@ -823,6 +824,7 @@ export const SoftphoneProvider: React.FC<{ children: React.ReactNode }> = ({
         config: null,
         calls: {},
         activeCallId: undefined,
+        hasOngoingCall: false,
         error: undefined
       });
     }
@@ -3603,25 +3605,23 @@ export const SoftphoneProvider: React.FC<{ children: React.ReactNode }> = ({
         const { recordKey, sipSessionId, callUuid } =
           resolveCallControlTarget(callId);
         const voipBridge = VoipBridge.getInstance();
-        const sipSession =
-          getSipSession(callId) ??
-          (callUuid ? getSipSession(callUuid) : undefined) ??
-          getSipSession(sipSessionId);
-        if (
-          voipBridge.isVoipCall(callId) ||
-          (callUuid && voipBridge.isVoipCall(callUuid)) ||
-          sipSession
-        ) {
-          if (sipSession) {
-            await sipSession.blindTransfer(target.replace(/\D/g, ""));
-            sippyCupRef.current?.emit(
-              "callStateChanged",
-              recordKey,
-              CallState.ENDED
-            );
-            voipBridge.handleCallEnd(callUuid ?? callId);
-            removeSipSession(callUuid ?? callId);
-          }
+        const sipSession1 = getSipSession(callId);
+        const sipSession2 = callUuid ? getSipSession(callUuid) : undefined;
+        const sipSession3 = getSipSession(sipSessionId);
+        const sipSession = sipSession1 ?? sipSession2 ?? sipSession3;
+
+        if (sipSession) {
+          logger.warn("[TRANSFER_TRACE] VoIP blind transfer via SipSession", {
+            callId,
+            recordKey,
+            sipSessionId,
+            target
+          });
+          await sipSession.blindTransfer(target.replace(/\D/g, ""));
+          logger.warn("[TRANSFER_TRACE] VoIP blind transfer REFER sent", {
+            callId,
+            recordKey
+          });
           return;
         }
 
@@ -4181,6 +4181,7 @@ export const SoftphoneProvider: React.FC<{ children: React.ReactNode }> = ({
             config: null,
             calls: {},
             activeCallId: undefined,
+            hasOngoingCall: false,
             error: undefined
           });
           resolve();
