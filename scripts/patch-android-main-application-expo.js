@@ -1,0 +1,123 @@
+#!/usr/bin/env node
+/**
+ * Ensure Expo dev-client / expo-updates hooks exist in MainApplication.kt.
+ * Without ReactNativeHostWrapper + ApplicationLifecycleDispatcher the app crashes on launch:
+ * "UpdatesController.instance was called before the module was initialized"
+ */
+const fs = require("fs");
+const path = require("path");
+
+const MAIN_APP = path.join(
+  __dirname,
+  "..",
+  "android",
+  "app",
+  "src",
+  "main",
+  "java",
+  "co",
+  "voxo",
+  "android",
+  "MainApplication.kt"
+);
+
+function patchMainApplicationExpo() {
+  if (!fs.existsSync(MAIN_APP)) {
+    console.warn("[patch-main-application-expo] skip — MainApplication.kt missing");
+    return false;
+  }
+
+  let body = fs.readFileSync(MAIN_APP, "utf8");
+  let changed = false;
+
+  if (!body.includes("import expo.modules.ApplicationLifecycleDispatcher")) {
+    body = body.replace(
+      "import com.facebook.soloader.SoLoader",
+      "import com.facebook.soloader.SoLoader\nimport expo.modules.ApplicationLifecycleDispatcher\nimport expo.modules.ReactNativeHostWrapper"
+    );
+    changed = true;
+  }
+
+  if (!body.includes("import android.content.res.Configuration")) {
+    body = body.replace(
+      "import android.app.Application",
+      "import android.app.Application\nimport android.content.res.Configuration"
+    );
+    changed = true;
+  }
+
+  if (!body.includes("ReactNativeHostWrapper(")) {
+    body = body.replace(
+      /override val reactNativeHost: ReactNativeHost\s*=\s*\n\s*object : DefaultReactNativeHost\(this\) \{/,
+      "override val reactNativeHost: ReactNativeHost = ReactNativeHostWrapper(\n      this,\n      object : DefaultReactNativeHost(this) {"
+    );
+    body = body.replace(
+      /override val isHermesEnabled: Boolean = BuildConfig\.IS_HERMES_ENABLED\n\s*}\n\s*\)/,
+      "override val isHermesEnabled: Boolean = BuildConfig.IS_HERMES_ENABLED\n      }\n  )"
+    );
+    changed = true;
+  }
+
+  if (body.includes("getDefaultReactHost(applicationContext, reactNativeHost)")) {
+    body = body.replace(
+      "get() = getDefaultReactHost(applicationContext, reactNativeHost)",
+      "get() = ReactNativeHostWrapper.createReactHost(applicationContext, reactNativeHost)"
+    );
+    body = body.replace(
+      "import com.facebook.react.defaults.DefaultReactHost.getDefaultReactHost\n",
+      ""
+    );
+    changed = true;
+  }
+
+  if (!body.includes("ApplicationLifecycleDispatcher.onApplicationCreate(this)")) {
+    body = body.replace(
+      /(\s+)(startNativeSipIfLoggedIn\(\)|initCallKeep\(\)|load\(\))\n(\s+)\}/,
+      (match, indent, lastCall, closeIndent, offset, full) => {
+        if (full.includes("ApplicationLifecycleDispatcher.onApplicationCreate")) return match;
+        return `${indent}${lastCall}\n${indent}ApplicationLifecycleDispatcher.onApplicationCreate(this)\n${closeIndent}}`;
+      }
+    );
+    if (!body.includes("ApplicationLifecycleDispatcher.onApplicationCreate(this)")) {
+      body = body.replace(
+        /super\.onCreate\(\)[\s\S]*?(\n\s+)\}/,
+        (match, closeIndent) => {
+          if (match.includes("ApplicationLifecycleDispatcher.onApplicationCreate")) return match;
+          return match.replace(
+            closeIndent + "}",
+            `${closeIndent}ApplicationLifecycleDispatcher.onApplicationCreate(this)\n${closeIndent}}`
+          );
+        }
+      );
+    }
+    changed = true;
+  }
+
+  if (!body.includes("ApplicationLifecycleDispatcher.onConfigurationChanged")) {
+    body = body.replace(
+      /(\n  override fun onCreate\(\) \{[\s\S]*?\n  \})\n/,
+      `$1
+
+  override fun onConfigurationChanged(newConfig: Configuration) {
+    super.onConfigurationChanged(newConfig)
+    ApplicationLifecycleDispatcher.onConfigurationChanged(this, newConfig)
+  }
+
+`
+    );
+    changed = true;
+  }
+
+  if (changed) {
+    fs.writeFileSync(MAIN_APP, body);
+    console.log("[patch-main-application-expo] patched MainApplication.kt");
+  }
+
+  return changed;
+}
+
+module.exports = { patchMainApplicationExpo };
+
+if (require.main === module) {
+  patchMainApplicationExpo();
+}

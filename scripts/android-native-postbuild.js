@@ -51,6 +51,11 @@ function runPostPrebuildFixes(options = {}) {
   } catch (e) {
     console.warn("[android-native-postbuild] splash theme patch:", e.message);
   }
+  try {
+    require("./patch-android-main-application-expo.js").patchMainApplicationExpo();
+  } catch (e) {
+    console.warn("[android-native-postbuild] MainApplication expo hooks:", e.message);
+  }
   const chatNative = isTruthy("EXPO_PUBLIC_CHAT_NATIVE");
   if (chatNative) {
     try {
