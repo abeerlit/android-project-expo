@@ -531,7 +531,12 @@ export function InCallScreen({
         }
         onCancel={closeDrawer}
       />,
-      0.9
+      0.9,
+      {
+        preventSwipeClose: true,
+        preventBackdropClose: true,
+        onHardwareBackPress: () => closeDrawer()
+      }
     );
   };
 
@@ -559,6 +564,43 @@ export function InCallScreen({
       };
     };
 
+    const label = transferSuccessLabel(contact);
+    const loadingSubtitle =
+      transferType === "blind" ? "Completing transfer" : "Placing the call";
+    const loadingTitle =
+      transferType === "blind"
+        ? `Transferring to ${label}…`
+        : `Calling ${label}…`;
+
+    openDrawer(
+      <View style={styles.addPersonLoadingInner}>
+        <LoadingSpinner size={40} />
+        <WhiteSpace height={padding.lg} />
+        <Text
+          color="color-colors-text-text-primary"
+          size={fontSize.lg}
+          weight="semiBold"
+          align="center"
+        >
+          {loadingTitle}
+        </Text>
+        <WhiteSpace height={padding.sm} />
+        <Text
+          color="color-colors-text-text-secondary"
+          size={fontSize.md}
+          align="center"
+        >
+          {loadingSubtitle}
+        </Text>
+      </View>,
+      0.45,
+      {
+        preventSwipeClose: true,
+        preventBackdropClose: true,
+        onHardwareBackPress: () => true
+      }
+    );
+
     try {
       if (transferType === "blind") {
         logger.warn("[TRANSFER_TRACE][UI] blind transfer starting", {
@@ -567,7 +609,7 @@ export function InCallScreen({
         });
         await transferCall(currentCallId, contact.number);
         logger.warn("[TRANSFER_TRACE][UI] blind transfer completed");
-        toast.success(`Call transferred to ${transferSuccessLabel(contact)}`);
+        toast.success(`Call transferred to ${label}`);
         closeDrawer();
       } else if (transferType === "attended") {
         logger.warn("[TRANSFER_TRACE][UI] Ask First (attended) starting", {
@@ -592,7 +634,14 @@ export function InCallScreen({
             originalCallId={currentCallId}
             transferCallId={transferCallId}
           />,
-          0.9
+          0.9,
+          {
+            preventSwipeClose: true,
+            preventBackdropClose: true,
+            onHardwareBackPress: () => {
+              void handleTransferCancel();
+            }
+          }
         );
         logger.warn("[TRANSFER_TRACE][UI] TransferStateDrawer opened", {
           ...transferStateSnapshot(),
@@ -1138,6 +1187,13 @@ const styles = StyleSheet.create({
   },
   loadingContainer: {
     alignItems: "center"
+  },
+  addPersonLoadingInner: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: padding.xl,
+    minHeight: 200
   },
   phoneNumberContainer: {
     flexDirection: "row",

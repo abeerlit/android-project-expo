@@ -32,12 +32,10 @@ export const TransferOptionsDrawer = ({
 
   const handleBlindTransfer = () => {
     onTransferTypeSelected("blind");
-    closeDrawer();
   };
 
   const handleAttendedTransfer = () => {
     onTransferTypeSelected("attended");
-    closeDrawer();
   };
 
   const handleCancel = () => {
