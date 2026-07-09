@@ -572,6 +572,88 @@ export function InCallScreen({
         ? `Transferring to ${label}…`
         : `Calling ${label}…`;
 
+    if (transferType === "attended") {
+      logger.warn("[TRANSFER_TRACE][UI] Ask First (attended) starting", {
+        ...transferStateSnapshot(),
+        contactName: contact.name,
+        contactNumber: contact.number
+      });
+
+      openDrawer(
+        <View style={styles.addPersonLoadingInner}>
+          <LoadingSpinner size={40} />
+          <WhiteSpace height={padding.lg} />
+          <Text
+            color="color-colors-text-text-primary"
+            size={fontSize.lg}
+            weight="semiBold"
+            align="center"
+          >
+            {loadingTitle}
+          </Text>
+          <WhiteSpace height={padding.sm} />
+          <Text
+            color="color-colors-text-text-secondary"
+            size={fontSize.md}
+            align="center"
+          >
+            {loadingSubtitle}
+          </Text>
+        </View>,
+        0.45,
+        {
+          preventSwipeClose: true,
+          preventBackdropClose: true,
+          onHardwareBackPress: () => true
+        }
+      );
+
+      try {
+        const transferCallId = await startAttendedTransfer(
+          currentCallId,
+          contact.number,
+          { displayName: contact.name }
+        );
+        logger.warn("[TRANSFER_TRACE][UI] startAttendedTransfer success", {
+          ...transferStateSnapshot(),
+          transferCallId,
+          contactNumber: contact.number
+        });
+
+        openDrawer(
+          <TransferStateDrawer
+            onCancel={handleTransferCancel}
+            originalCallId={currentCallId}
+            transferCallId={transferCallId}
+          />,
+          0.9,
+          {
+            preventSwipeClose: true,
+            preventBackdropClose: true,
+            onHardwareBackPress: () => {
+              void handleTransferCancel();
+            }
+          }
+        );
+        logger.warn("[TRANSFER_TRACE][UI] TransferStateDrawer opened", {
+          ...transferStateSnapshot(),
+          transferCallId
+        });
+      } catch (error) {
+        logger.error("[TRANSFER_TRACE][UI] transfer flow failed", {
+          transferType,
+          ...transferStateSnapshot(),
+          contactNumber: contact.number,
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined
+        });
+        logger.error("Transfer failed:", error);
+        toast.error("Transfer failed. Please try again.");
+        closeDrawer();
+      }
+      return;
+    }
+
     openDrawer(
       <View style={styles.addPersonLoadingInner}>
         <LoadingSpinner size={40} />
@@ -611,42 +693,6 @@ export function InCallScreen({
         logger.warn("[TRANSFER_TRACE][UI] blind transfer completed");
         toast.success(`Call transferred to ${label}`);
         closeDrawer();
-      } else if (transferType === "attended") {
-        logger.warn("[TRANSFER_TRACE][UI] Ask First (attended) starting", {
-          ...transferStateSnapshot(),
-          contactName: contact.name,
-          contactNumber: contact.number
-        });
-        const transferCallId = await startAttendedTransfer(
-          currentCallId,
-          contact.number,
-          { displayName: contact.name }
-        );
-        logger.warn("[TRANSFER_TRACE][UI] startAttendedTransfer success", {
-          ...transferStateSnapshot(),
-          transferCallId,
-          contactNumber: contact.number
-        });
-
-        openDrawer(
-          <TransferStateDrawer
-            onCancel={handleTransferCancel}
-            originalCallId={currentCallId}
-            transferCallId={transferCallId}
-          />,
-          0.9,
-          {
-            preventSwipeClose: true,
-            preventBackdropClose: true,
-            onHardwareBackPress: () => {
-              void handleTransferCancel();
-            }
-          }
-        );
-        logger.warn("[TRANSFER_TRACE][UI] TransferStateDrawer opened", {
-          ...transferStateSnapshot(),
-          transferCallId
-        });
       }
     } catch (error) {
       logger.error("[TRANSFER_TRACE][UI] transfer flow failed", {

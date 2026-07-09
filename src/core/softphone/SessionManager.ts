@@ -98,6 +98,9 @@ export class SessionManager {
   /** Pending invite options for sendOutgoingInvite (callId → options) */
   private pendingInviteOptions: Map<string, InviterInviteOptions> = new Map();
 
+  /** Full CallOptions for outbound legs (attended transfer fast-path, etc.) */
+  private outgoingCallOptions: Map<string, CallOptions> = new Map();
+
   // Removed transfer state - handled by SippyCup now
 
   /**
@@ -500,8 +503,10 @@ export class SessionManager {
     await this.ensureReadyForOutbound();
 
     try {
-      // Get local media stream
-      const stream = await this.getLocalStream();
+      const stream =
+        options.isAttendedTransferLeg && this.localStream
+          ? this.localStream
+          : await this.getLocalStream();
       this.localStream = stream;
 
       // Format the destination URI
@@ -661,6 +666,7 @@ export class SessionManager {
       // Store invite options so sendOutgoingInvite can send the INVITE after
       // NativeIntegration.startOutgoingCall(callId) has created the callUUID mapping.
       this.pendingInviteOptions.set(sessionId, inviteRequestOptions);
+      this.outgoingCallOptions.set(sessionId, options);
 
       console.log(
         `📞 [SM] ${new Date().toISOString()} makeCall: prepared outgoing callId=${sessionId} (INVITE not sent yet)`
@@ -700,12 +706,17 @@ export class SessionManager {
     );
     this.eventEmitter.emit("outgoingCall", callId, callInfo);
     this.eventEmitter.emit("callStateChanged", callId, CallState.OUTGOING);
+    const outgoingOpts = this.outgoingCallOptions.get(callId);
     try {
-      await this.ensureReadyForOutbound();
+      if (!outgoingOpts?.isAttendedTransferLeg) {
+        await this.ensureReadyForOutbound();
+      }
       await session.invite(inviteRequestOptions);
       this.pendingInviteOptions.delete(callId);
+      this.outgoingCallOptions.delete(callId);
     } catch (err) {
       this.pendingInviteOptions.delete(callId);
+      this.outgoingCallOptions.delete(callId);
       throw err;
     }
   }

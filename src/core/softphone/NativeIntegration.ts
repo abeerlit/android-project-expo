@@ -526,7 +526,8 @@ export class NativeIntegration {
   public async startOutgoingCall(
     callId: string,
     destination: string,
-    localizedCallerName?: string
+    localizedCallerName?: string,
+    options?: { skipRingbackWarmup?: boolean }
   ): Promise<string> {
     const ts = () => new Date().toISOString();
     const label = localizedCallerName?.trim();
@@ -616,27 +617,33 @@ export class NativeIntegration {
           );
         }
       } else if (Platform.OS === "android") {
-        try {
+        if (options?.skipRingbackWarmup) {
           console.log(
-            `🔊 [NI-RINGBACK] ${ts()} Android: starting InCallManager and ringback (_DTMF_ = proper brr-brr tone)...`
+            `🔊 [NI-RINGBACK] ${ts()} Android: attended-transfer leg — skipping InCallManager restart/ringback warm-up`
           );
-          InCallManager.stopRingtone();
-          InCallManager.stopRingback();
-          InCallManager.stop();
-          InCallManager.start({ media: "audio" });
-          await new Promise((r) => setTimeout(r, 150));
-          // Use _DTMF_ — ToneGenerator.TONE_CDMA_NETWORK_USA_RINGBACK (proper brr-brr).
-          // _BUNDLE_ falls back to DEFAULT_RINGTONE_URI when incallmanager_ringback.mp3 isn't found,
-          // which plays the incoming-call ringtone instead of ringback.
-          InCallManager.startRingback("_DTMF_");
-          console.log(
-            `🔊 [NI-RINGBACK] ${ts()} Android: startRingback(_DTMF_) done`
-          );
-        } catch (ringbackError) {
-          console.error(
-            `🔊 [NI-RINGBACK] ${ts()} Android: ERROR during ringback setup:`,
-            ringbackError
-          );
+        } else {
+          try {
+            console.log(
+              `🔊 [NI-RINGBACK] ${ts()} Android: starting InCallManager and ringback (_DTMF_ = proper brr-brr tone)...`
+            );
+            InCallManager.stopRingtone();
+            InCallManager.stopRingback();
+            InCallManager.stop();
+            InCallManager.start({ media: "audio" });
+            await new Promise((r) => setTimeout(r, 150));
+            // Use _DTMF_ — ToneGenerator.TONE_CDMA_NETWORK_USA_RINGBACK (proper brr-brr).
+            // _BUNDLE_ falls back to DEFAULT_RINGTONE_URI when incallmanager_ringback.mp3 isn't found,
+            // which plays the incoming-call ringtone instead of ringback.
+            InCallManager.startRingback("_DTMF_");
+            console.log(
+              `🔊 [NI-RINGBACK] ${ts()} Android: startRingback(_DTMF_) done`
+            );
+          } catch (ringbackError) {
+            console.error(
+              `🔊 [NI-RINGBACK] ${ts()} Android: ERROR during ringback setup:`,
+              ringbackError
+            );
+          }
         }
       } else {
         console.log(

@@ -326,8 +326,9 @@ export class SippyCup extends EventEmitter {
     }
 
     try {
-      await this.holdAllCalls();
-      // Hold existing calls before making new outbound call
+      if (!options?.skipHold) {
+        await this.holdAllCalls();
+      }
 
       // 1) Prepare call (get callId) without sending INVITE so we can register with native first
       const callId = await this.sessionManager.makeCall(destination, options);
@@ -344,7 +345,10 @@ export class SippyCup extends EventEmitter {
       await this.nativeIntegration.startOutgoingCall(
         callId,
         destination,
-        displayLabel
+        displayLabel,
+        {
+          skipRingbackWarmup: options?.isAttendedTransferLeg === true
+        }
       );
 
       // 3) Send INVITE (emits OUTGOING/CONNECTING etc. — mapping already exists)

@@ -327,6 +327,21 @@ export interface CallOptions {
    * Callee number (destination) - sent as X-VoxoConnect-Callee-Number for web
    */
   calleeNumber?: string;
+
+  /**
+   * Skip holdAllCalls before outbound (attended transfer: parent hold runs in parallel).
+   */
+  skipHold?: boolean;
+
+  /**
+   * Parent session id for attended transfer consult leg.
+   */
+  attendedTransferParentSessionId?: string;
+
+  /**
+   * Second leg during attended transfer — reuse media and skip ringback warm-up.
+   */
+  isAttendedTransferLeg?: boolean;
 }
 
 /**

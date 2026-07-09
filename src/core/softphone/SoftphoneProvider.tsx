@@ -490,6 +490,7 @@ export const SoftphoneProvider: React.FC<{ children: React.ReactNode }> = ({
   const handledEndedCallIdsRef = useRef<Set<string>>(new Set());
   const isCompletingAttendedTransferRef = useRef(false);
   const isSwappingAttendedTransferRef = useRef(false);
+  const prewarmSipForTransferRef = useRef<(() => void) | null>(null);
   const initializingPromiseRef = useRef<Promise<SippyCup> | null>(null);
   const pendingOutgoingContactMetadataRef = useRef<{
     displayName?: string;
@@ -1518,6 +1519,11 @@ export const SoftphoneProvider: React.FC<{ children: React.ReactNode }> = ({
               );
               setActiveCallId(callId);
               navigation.navigate("InCallScreen", { callId });
+            } else if (
+              callState === CallState.CONNECTED &&
+              Platform.OS === "android"
+            ) {
+              prewarmSipForTransferRef.current?.();
             } else {
               console.log(
                 "🟠 [SoftphoneProvider] 📞 Call state changed but not navigating:",
@@ -3232,6 +3238,14 @@ export const SoftphoneProvider: React.FC<{ children: React.ReactNode }> = ({
     [ensureInitialized]
   );
 
+  prewarmSipForTransferRef.current = () => {
+    ensureSippyCupForCallControl(true).catch((err) => {
+      logger.debug("[TRANSFER_TRACE] SIP pre-warm for transfer failed (non-fatal)", {
+        error: err instanceof Error ? err.message : String(err)
+      });
+    });
+  };
+
   const holdCall = useCallback(
     async (callId: string): Promise<void> => {
       const { recordKey, sipSessionId, callUuid, headless } =
@@ -3688,11 +3702,13 @@ export const SoftphoneProvider: React.FC<{ children: React.ReactNode }> = ({
         storeSipSession(transferCallUuid, transferSession, transferClient);
         setState((prev) => ({
           ...prev,
+          activeCallId: transferCallUuid,
           calls: {
             ...prev.calls,
             [callId]: {
               ...prev.calls[callId],
-              childSessionId: transferCallUuid
+              childSessionId: transferCallUuid,
+              isOnHold: true
             },
             [transferCallUuid]: {
               sessionId: transferCallUuid,
@@ -3715,7 +3731,7 @@ export const SoftphoneProvider: React.FC<{ children: React.ReactNode }> = ({
               connected: false,
               recording: false,
               conferencing: false,
-              attendedTransfer: false,
+              attendedTransfer: true,
               childSessionId: undefined,
               totalCallDuration: 0,
               currentHoldDuration: 0,
@@ -3741,7 +3757,6 @@ export const SoftphoneProvider: React.FC<{ children: React.ReactNode }> = ({
 
       // SessionManager path (Android FCM / kill-state answered)
       const { recordKey, sipSessionId } = resolveCallControlTarget(callId);
-      const sippyCup = await ensureSippyCupForCallControl(true);
       const originalCall =
         stateRef.current.calls[recordKey] ??
         stateRef.current.calls[callId];
@@ -3762,6 +3777,90 @@ export const SoftphoneProvider: React.FC<{ children: React.ReactNode }> = ({
         throw new Error("Cannot start transfer - original call not found");
       }
 
+      const transferCallUuid = uuidv4();
+      const transferStartMs = Date.now();
+      const parentWasOnHold = originalCall.isOnHold;
+
+      if (displayName) {
+        pendingOutgoingContactMetadataRef.current = {
+          displayName
+        };
+      }
+
+      // Optimistic UI: parent on hold + child outgoing before any SIP await (matches iOS VoIP path).
+      setState((prev) => {
+        const parentRow = prev.calls[recordKey] ?? prev.calls[callId];
+        if (!parentRow) return prev;
+        return {
+          ...prev,
+          activeCallId: transferCallUuid,
+          calls: {
+            ...prev.calls,
+            [recordKey]: {
+              ...parentRow,
+              childSessionId: transferCallUuid,
+              isOnHold: true
+            },
+            [transferCallUuid]: {
+              sessionId: transferCallUuid,
+              callId: transferCallUuid,
+              parentSessionId: recordKey,
+              state: CallState.OUTGOING,
+              direction: CallDirection.OUTGOING,
+              remoteDisplayName: displayName || target,
+              remoteUri: target,
+              ...(displayName ? { contactDisplayName: displayName } : {}),
+              remoteParty: {
+                cidNum: target,
+                cidName: displayName || target
+              },
+              startTime: new Date().toISOString(),
+              isMuted: false,
+              isOnHold: false,
+              isSpeakerOn: false,
+              isEmergency: false,
+              connected: false,
+              recording: false,
+              conferencing: false,
+              attendedTransfer: true,
+              childSessionId: undefined,
+              totalCallDuration: 0,
+              currentHoldDuration: 0,
+              totalHoldDuration: 0,
+              mutedConferenceParticipants: []
+            }
+          }
+        };
+      });
+
+      logger.warn("[TRANSFER_TRACE][PAIR] optimistic transfer state committed", {
+        callId,
+        recordKey,
+        transferCallUuid,
+        elapsedMs: Date.now() - transferStartMs
+      });
+
+      const rollbackOptimisticTransfer = () => {
+        setState((prev) => {
+          const parentRow = prev.calls[recordKey] ?? prev.calls[callId];
+          if (!parentRow) return prev;
+          const { [transferCallUuid]: _removed, ...restCalls } = prev.calls;
+          return {
+            ...prev,
+            activeCallId:
+              prev.activeCallId === transferCallUuid ? recordKey : prev.activeCallId,
+            calls: {
+              ...restCalls,
+              [recordKey]: {
+                ...parentRow,
+                childSessionId: undefined,
+                isOnHold: parentWasOnHold
+              }
+            }
+          };
+        });
+      };
+
       try {
         logger.debug("startAttendedTransfer: Starting SIP transfer operation", {
           callId,
@@ -3771,117 +3870,83 @@ export const SoftphoneProvider: React.FC<{ children: React.ReactNode }> = ({
           displayName: displayName ?? null
         });
 
-        if (displayName) {
-          pendingOutgoingContactMetadataRef.current = {
-            displayName
-          };
+        const sippyCup = await ensureSippyCupForCallControl(true);
+        logger.warn("[TRANSFER_TRACE] ensureSippyCupForCallControl done", {
+          elapsedMs: Date.now() - transferStartMs
+        });
+
+        // Hold parent in parallel with outbound setup (do not block makeCall on re-INVITE 200 OK).
+        if (!parentWasOnHold) {
+          void sippyCup.holdCall(sipSessionId).catch((holdErr) => {
+            logger.warn("[TRANSFER_TRACE] parallel parent hold failed (non-fatal)", {
+              sipSessionId,
+              error:
+                holdErr instanceof Error ? holdErr.message : String(holdErr)
+            });
+          });
         }
 
-        if (!originalCall.isOnHold) {
-          await sippyCup.holdCall(sipSessionId);
-          updateCall(recordKey, { isOnHold: true });
-        }
-
-        const transferCallUuid = uuidv4();
         const transferOptions: CallOptions = {
           callUuid: transferCallUuid,
+          skipHold: true,
+          isAttendedTransferLeg: true,
+          attendedTransferParentSessionId: recordKey,
           ...(displayName ? { displayName } : {})
         };
 
         const transferCallId = await sippyCup.makeCall(target, transferOptions);
+        logger.warn("[TRANSFER_TRACE] makeCall consult leg done", {
+          transferCallId,
+          elapsedMs: Date.now() - transferStartMs
+        });
 
         if (displayName) {
           updateCall(transferCallId, { contactDisplayName: displayName });
         }
 
-        const parentBefore = stateRef.current.calls[recordKey];
-        logger.warn("[TRANSFER_TRACE][PAIR] startAttendedTransfer before link setState", {
-          callId,
-          recordKey,
-          transferCallId,
-          parentHadChildSessionId: parentBefore?.childSessionId,
-          childAlreadyInCalls: transferCallId in stateRef.current.calls
-        });
-
-        // Link parent↔child immediately so UI (e.g. TransferStateDrawer) sees a pair on first paint.
-        // Merge with existing child row from makeCall handlers, or add a placeholder until events enrich it.
-        setState((prev) => {
-          const parentRow = prev.calls[recordKey] ?? prev.calls[callId];
-          const updatedCalls = {
-            ...prev.calls,
-            [recordKey]: {
-              ...parentRow,
-              childSessionId: transferCallId
-            },
-            [transferCallId]: prev.calls[transferCallId]
-              ? {
-                  ...prev.calls[transferCallId],
+        if (transferCallId !== transferCallUuid) {
+          setState((prev) => {
+            const parentRow = prev.calls[recordKey] ?? prev.calls[callId];
+            const childRow =
+              prev.calls[transferCallId] ?? prev.calls[transferCallUuid];
+            if (!parentRow || !childRow) return prev;
+            const { [transferCallUuid]: _old, ...rest } = prev.calls;
+            return {
+              ...prev,
+              activeCallId: transferCallId,
+              calls: {
+                ...rest,
+                [recordKey]: {
+                  ...parentRow,
+                  childSessionId: transferCallId
+                },
+                [transferCallId]: {
+                  ...childRow,
                   parentSessionId: recordKey
                 }
-              : {
-                  sessionId: transferCallId,
-                  callId: transferCallId,
-                  parentSessionId: recordKey,
-                  state: CallState.OUTGOING,
-                  direction: CallDirection.OUTGOING,
-                  remoteDisplayName: displayName || target,
-                  remoteUri: target,
-                  ...(displayName ? { contactDisplayName: displayName } : {}),
-                  remoteParty: {
-                    cidNum: target,
-                    cidName: displayName || target
-                  },
-                  startTime: new Date().toISOString(),
-                  isMuted: false,
-                  isOnHold: false,
-                  isSpeakerOn: false,
-                  isEmergency: false,
-                  connected: false,
-                  recording: false,
-                  conferencing: false,
-                  attendedTransfer: false,
-                  childSessionId: undefined,
-                  totalCallDuration: 0,
-                  currentHoldDuration: 0,
-                  totalHoldDuration: 0,
-                  mutedConferenceParticipants: []
-                }
-          };
-          return {
-            ...prev,
-            calls: updatedCalls
-          };
-        });
-
-        setTimeout(() => {
-          const p = stateRef.current.calls[callId];
-          const c = stateRef.current.calls[transferCallId];
-          logger.warn("[TRANSFER_TRACE][PAIR] startAttendedTransfer after commit", {
-            callId,
-            transferCallId,
-            hasParentChildLink: p?.childSessionId === transferCallId,
-            childExists: !!c,
-            childState: c?.state,
-            parentState: p?.state
+              }
+            };
           });
-        }, 0);
+        }
 
         logger.debug("startAttendedTransfer: Transfer process completed", {
           originalCallId: callId,
-          transferCallId,
+          transferCallId: transferCallId ?? transferCallUuid,
           target,
           displayName: displayName ?? null,
-          immediateStateUpdate: true
+          elapsedMs: Date.now() - transferStartMs
         });
 
-        return transferCallId;
+        return transferCallId ?? transferCallUuid;
       } catch (error) {
+        rollbackOptimisticTransfer();
         logger.error("startAttendedTransfer: Failed to start transfer", {
           error: error instanceof Error ? error.message : String(error),
           stack: error instanceof Error ? error.stack : undefined,
           callId,
           target,
-          displayName: displayName ?? null
+          displayName: displayName ?? null,
+          elapsedMs: Date.now() - transferStartMs
         });
         throw error;
       }
