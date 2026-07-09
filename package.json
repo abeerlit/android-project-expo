@@ -1,6 +1,6 @@
 {
   "name": "voxo-connect-android-expo",
-  "version": "2.0.42",
+  "version": "2.0.49",
   "private": true,
   "main": "index.js",
   "scripts": {

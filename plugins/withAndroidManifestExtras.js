@@ -12,7 +12,7 @@ const PERMISSIONS = [
   "android.permission.RECORD_AUDIO",
   "android.permission.READ_CONTACTS",
   "android.permission.WRITE_CONTACTS",
-  "android.permission.READ_PHONE_STATE",
+  // READ_PHONE_STATE: declared by react-native-callkeep with maxSdkVersion=29 (API 30+ uses READ_PHONE_NUMBERS).
   "android.permission.CALL_PHONE",
   "android.permission.POST_NOTIFICATIONS",
   "android.permission.ACCESS_FINE_LOCATION",
