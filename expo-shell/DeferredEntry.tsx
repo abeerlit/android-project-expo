@@ -4,6 +4,7 @@ import * as SplashScreen from "expo-splash-screen";
 import { BootPlaceholder } from "./BootPlaceholder.tsx";
 import { BootStoreContext, type BootStoreBundle } from "./BootStoreContext";
 import { loadGlobalStorePiecemeal } from "./loadGlobalStore";
+import { setGlobalStoreBridge } from "./globalStoreBridge";
 import { appCouldNotStartMessage } from "shared/branding/appBrand.ts";
 
 void SplashScreen.preventAutoHideAsync().catch(() => {});
