@@ -1,0 +1,59 @@
+{
+  "cli": {
+    "version": ">= 12.0.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_NATIVE_TELEPHONY": "0",
+        "EXPO_PUBLIC_NATIVE_NOTIFICATIONS": "0",
+        "EXPO_PUBLIC_CHAT_NATIVE": "0",
+        "EXPO_PUBLIC_MEETINGS_NATIVE": "0"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_NATIVE_TELEPHONY": "1",
+        "EXPO_PUBLIC_NATIVE_NOTIFICATIONS": "1",
+        "EXPO_PUBLIC_CHAT_NATIVE": "1",
+        "EXPO_PUBLIC_MEETINGS_NATIVE": "1"
+      }
+    },
+    "production": {
+      "android": {
+        "buildType": "app-bundle"
+      },
+      "env": {
+        "EXPO_PUBLIC_NATIVE_TELEPHONY": "1",
+        "EXPO_PUBLIC_NATIVE_NOTIFICATIONS": "1",
+        "EXPO_PUBLIC_MEETINGS_NATIVE": "1",
+        "EXPO_PUBLIC_CHAT_NATIVE": "1",
+        "ANDROID_PACKAGE": "co.voxo.android",
+        "DISPLAY_NAME": "VOXO Connect",
+        "GOOGLE_SERVICES_JSON": "./native-resources/google-services.json",
+        "APP_ICON": "./branding/voxo/icon.png",
+        "SPLASH_IMAGE": "./branding/voxo/splash.png",
+        "ORGANIZATION_NAME": "VOXO",
+        "EAS_PROJECT_ID": "5461d0f9-2765-45dc-9f15-db4e1943c159"
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "android": {
+        "serviceAccountKeyPath": "${GOOGLE_SERVICE_ACCOUNT_KEY_PATH}",
+        "track": "internal"
+      }
+    }
+  }
+}

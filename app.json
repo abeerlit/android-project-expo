@@ -1,0 +1,41 @@
+{
+  "expo": {
+    "owner": "voxo",
+    "name": "VOXO Connect",
+    "slug": "voxo-connect-ios-expo",
+    "version": "2.0.49",
+    "orientation": "default",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": false,
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "android": {
+      "package": "co.voxo.android",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#ffffff"
+      }
+    },
+    "extra": {
+      "EXPO_PUBLIC_NATIVE_TELEPHONY": false,
+      "EXPO_PUBLIC_NATIVE_NOTIFICATIONS": false,
+      "EXPO_PUBLIC_CHAT_NATIVE": false,
+      "EXPO_PUBLIC_MEETINGS_NATIVE": false,
+      "EXPO_PUBLIC_MINIMAL_BOOT": false,
+      "DISPLAY_NAME": "VOXO Connect",
+      "ORGANIZATION_NAME": "VOXO",
+      "LEGAL_TERMS_URL": "https://voxo.co/terms-and-conditions",
+      "LEGAL_PRIVACY_URL": "https://voxo.co/privacy-policy",
+      "ANDROID_PACKAGE": "co.voxo.android",
+      "APP_ICON": "/Users/app/Desktop/voxo/android-project-expo/branding/voxo/icon.png",
+      "SPLASH_IMAGE": "/Users/app/Desktop/voxo/android-project-expo/branding/voxo/splash.png",
+      "eas": {
+        "projectId": "5461d0f9-2765-45dc-9f15-db4e1943c159"
+      }
+    }
+  }
+}

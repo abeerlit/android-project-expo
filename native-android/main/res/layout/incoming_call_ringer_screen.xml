@@ -1,0 +1,358 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/voxomobile_black">
+
+
+    <TextView
+        android:id="@+id/caller_name"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:autoSizeTextType="uniform"
+        android:contentDescription="@string/content_description_caller_name"
+        android:gravity="center"
+        android:text="@string/content_description_caller_name"
+        android:textColor="@color/white"
+        android:textSize="30sp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.0"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="0.109" />
+
+    <TextView
+        android:id="@+id/caller_number"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:alpha="0.75"
+        android:autoSizeTextType="uniform"
+        android:contentDescription="@string/content_description_caller_number"
+        android:gravity="center"
+        android:text="@string/content_description_caller_number"
+        android:textColor="@color/white"
+        android:textSize="20sp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/caller_name"
+        app:layout_constraintVertical_bias="0" />
+
+    <!-- Voxo Mobile logo & text -->
+    <LinearLayout
+        android:id="@+id/voxomobile_logo_container"
+        android:layout_width="match_parent"
+        android:layout_height="30dp"
+        android:orientation="horizontal"
+        android:gravity="center"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/caller_number"
+        app:layout_constraintVertical_bias="0.01">
+
+            <ImageView
+                android:id="@+id/voxomobile_logo"
+                android:layout_width="30dp"
+                android:layout_height="30dp"
+                android:scaleType="centerCrop"
+                android:src="@mipmap/ic_launcher_round"
+                app:layout_constraintEnd_toEndOf="@id/voxomobile_logo_text"
+                android:contentDescription="@string/content_description_voxomobile_icon"/>
+
+            <TextView
+                android:id="@+id/voxomobile_logo_text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
+                android:text="VOXO Connect"
+                android:textSize="18sp"
+                android:textColor="@color/white" />
+
+    </LinearLayout>
+
+    <Button
+        android:id="@+id/end_accept_button"
+        android:layout_width="85dp"
+        android:layout_height="85dp"
+        android:background="@drawable/ic_end_accept"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.15"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="0.864"
+        />
+
+    <TextView
+        android:id="@+id/end_accept_button_label"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:text="@string/button_text_end_accept_button"
+        android:textAlignment="center"
+        android:textColor="@color/white"
+        android:textSize="18sp"
+        android:visibility="gone"
+        app:layout_constraintEnd_toEndOf="@+id/end_accept_button"
+        app:layout_constraintStart_toStartOf="@+id/end_accept_button"
+        app:layout_constraintTop_toBottomOf="@+id/end_accept_button"  />
+
+    <!-- Decline button -->
+    <ImageView
+        android:id="@+id/reject_button_icon"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:contentDescription="@string/content_description_decline_button_icon"
+        android:elevation="10dp"
+        app:layout_constraintBottom_toBottomOf="@+id/reject_button"
+        app:layout_constraintEnd_toEndOf="@+id/reject_button"
+        app:layout_constraintStart_toStartOf="@+id/reject_button"
+        app:layout_constraintTop_toTopOf="@+id/reject_button"
+        app:srcCompat="@drawable/ic_decline_call" />
+
+    <Button
+        android:id="@+id/reject_button"
+        android:layout_width="80dp"
+        android:layout_height="80dp"
+        android:background="@drawable/circle_button_red"
+        android:contentDescription="@string/content_description_decline_button"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.09"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="0.864" />
+
+    <TextView
+        android:id="@+id/reject_button_label"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:text="@string/button_text_decline_button"
+        android:textAlignment="center"
+        android:textColor="@color/white"
+        android:textSize="18sp"
+        app:layout_constraintEnd_toEndOf="@+id/reject_button"
+        app:layout_constraintHorizontal_bias="0.5"
+        app:layout_constraintStart_toStartOf="@+id/reject_button"
+        app:layout_constraintTop_toBottomOf="@+id/reject_button" />
+
+    <!-- Unlock button -->
+    <ImageView
+        android:id="@+id/unlock_button_icon"
+        android:layout_width="45dp"
+        android:layout_height="45dp"
+        android:contentDescription="@string/content_description_unlock_button_icon"
+        android:elevation="10dp"
+        app:layout_constraintBottom_toBottomOf="@id/unlock_button"
+        app:layout_constraintEnd_toEndOf="@id/unlock_button"
+        app:layout_constraintHorizontal_bias=".5"
+        app:layout_constraintStart_toStartOf="@id/unlock_button"
+        app:layout_constraintTop_toTopOf="@id/unlock_button"
+        app:layout_constraintVertical_bias=".5"
+        app:srcCompat="@drawable/ic_unlock" />
+
+    <Button
+        android:id="@+id/unlock_button"
+        android:layout_width="90dp"
+        android:layout_height="90dp"
+        android:background="@drawable/circle_button"
+        android:contentDescription="@string/content_description_unlock_button"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.50"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="0.86" />
+
+    <TextView
+        android:id="@+id/unlock_button_label"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:text="@string/button_text_unlock_button"
+        android:textAlignment="center"
+        android:textColor="@color/white"
+        android:textSize="18sp"
+        app:layout_constraintEnd_toEndOf="@+id/unlock_button"
+        app:layout_constraintHorizontal_bias="0.5"
+        app:layout_constraintStart_toStartOf="@+id/unlock_button"
+        app:layout_constraintTop_toBottomOf="@+id/unlock_button" />
+
+    <!-- Decline button - Large -->
+    <ImageView
+        android:id="@+id/reject_button_large_icon"
+        android:layout_width="45dp"
+        android:layout_height="45dp"
+        android:contentDescription="@string/content_description_decline_button_icon"
+        android:elevation="10dp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="@id/reject_button_large"
+        app:layout_constraintEnd_toEndOf="@id/reject_button_large"
+        app:layout_constraintHorizontal_bias=".5"
+        app:layout_constraintStart_toStartOf="@id/reject_button_large"
+        app:layout_constraintTop_toTopOf="@id/reject_button_large"
+        app:layout_constraintVertical_bias=".5"
+        app:srcCompat="@drawable/ic_decline_call" />
+
+    <Button
+        android:id="@+id/reject_button_large"
+        android:layout_width="90dp"
+        android:layout_height="90dp"
+        android:background="@drawable/circle_button_red"
+        android:contentDescription="@string/content_description_decline_button"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.50"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="0.86" />
+
+    <TextView
+        android:id="@+id/reject_button_large_label"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:text="@string/button_text_decline_button"
+        android:textAlignment="center"
+        android:textColor="@color/white"
+        android:textSize="18sp"
+        android:visibility="gone"
+        app:layout_constraintEnd_toEndOf="@+id/reject_button_large"
+        app:layout_constraintHorizontal_bias="0.5"
+        app:layout_constraintStart_toStartOf="@+id/reject_button_large"
+        app:layout_constraintTop_toBottomOf="@+id/reject_button_large" />
+
+    <!-- Hold button -->
+    <ImageView
+        android:id="@+id/hold_button_icon"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:contentDescription="@string/content_description_hold_button_icon"
+        android:elevation="10dp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="@id/hold_button"
+        app:layout_constraintEnd_toEndOf="@id/hold_button"
+        app:layout_constraintHorizontal_bias=".5"
+        app:layout_constraintStart_toStartOf="@id/hold_button"
+        app:layout_constraintTop_toTopOf="@id/hold_button"
+        app:layout_constraintVertical_bias=".5"
+        app:srcCompat="@drawable/ic_pause" />
+
+    <Button
+        android:id="@+id/hold_button"
+        android:layout_width="80dp"
+        android:layout_height="80dp"
+        android:background="@drawable/circle_button"
+        android:contentDescription="@string/content_description_hold_button"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.85"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="0.864" />
+
+    <TextView
+        android:id="@+id/hold_button_label"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:text="@string/button_text_hold_button"
+        android:textAlignment="center"
+        android:textColor="@color/white"
+        android:textSize="18sp"
+        android:visibility="gone"
+        app:layout_constraintEnd_toEndOf="@+id/hold_button"
+        app:layout_constraintStart_toStartOf="@+id/hold_button"
+        app:layout_constraintTop_toBottomOf="@+id/hold_button" />
+
+    <!-- Hold & Accept button -->
+    <Button
+        android:id="@+id/hold_accept_button"
+        android:layout_width="85dp"
+        android:layout_height="85dp"
+        android:background="@drawable/ic_hold_accept"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.85"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="0.864"
+        />
+
+    <TextView
+        android:id="@+id/hold_accept_button_label"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:text="@string/button_text_hold_accept_button"
+        android:textAlignment="center"
+        android:textColor="@color/white"
+        android:textSize="18sp"
+        android:visibility="gone"
+        app:layout_constraintEnd_toEndOf="@+id/hold_accept_button"
+        app:layout_constraintStart_toStartOf="@+id/hold_accept_button"
+        app:layout_constraintTop_toBottomOf="@+id/hold_accept_button"  />
+
+    <!-- Accept button -->
+    <ImageView
+        android:id="@+id/answer_button_icon"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:contentDescription="@string/content_description_accept_button_icon"
+        android:elevation="10dp"
+        app:layout_constraintBottom_toBottomOf="@id/answer_button"
+        app:layout_constraintEnd_toEndOf="@id/answer_button"
+        app:layout_constraintHorizontal_bias=".5"
+        app:layout_constraintStart_toStartOf="@id/answer_button"
+        app:layout_constraintTop_toTopOf="@id/answer_button"
+        app:layout_constraintVertical_bias=".5"
+        app:srcCompat="@drawable/ic_phone" />
+
+    <Button
+        android:id="@+id/answer_button"
+        android:layout_width="80dp"
+        android:layout_height="80dp"
+        android:background="@drawable/circle_button_green"
+        android:contentDescription="@string/content_description_accept_button"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.912"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="0.864" />
+
+    <TextView
+        android:id="@+id/answer_button_label"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:text="@string/button_text_accept_button"
+        android:textAlignment="center"
+        android:textColor="@color/white"
+        android:textSize="18sp"
+        app:layout_constraintHorizontal_bias="0.5"
+        app:layout_constraintEnd_toEndOf="@+id/answer_button"
+        app:layout_constraintStart_toStartOf="@+id/answer_button"
+        app:layout_constraintTop_toBottomOf="@+id/answer_button" />
+
+    <!-- Held calls list (empty in kill-state flow, used for multi-call UI) -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/held_call_items"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>

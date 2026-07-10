@@ -1,0 +1,633 @@
+diff --git a/node_modules/@daily-co/react-native-webrtc/android/src/main/java/com/oney/WebRTCModule/RTCVideoViewManager.java b/node_modules/@daily-co/react-native-webrtc/android/src/main/java/com/oney/WebRTCModule/RTCVideoViewManager.java
+index 5556094..169816c 100644
+--- a/node_modules/@daily-co/react-native-webrtc/android/src/main/java/com/oney/WebRTCModule/RTCVideoViewManager.java
++++ b/node_modules/@daily-co/react-native-webrtc/android/src/main/java/com/oney/WebRTCModule/RTCVideoViewManager.java
+@@ -76,6 +76,23 @@ public class RTCVideoViewManager extends SimpleViewManager<WebRTCView> {
+         view.setZOrder(zOrder);
+     }
+ 
++    /**
++     * Rounded-rect clip radius in dp (Android). Clips {@link SurfaceViewRenderer} via outline.
++     */
++    @ReactProp(name = "borderRadius", defaultFloat = 0f)
++    public void setBorderRadius(WebRTCView view, float borderRadius) {
++        float density = view.getContext().getResources().getDisplayMetrics().density;
++        view.setClipBorderRadius(borderRadius * density);
++    }
++
++    /**
++     * Bumps re-apply of rounded outline without changing radius (remote roster / layout).
++     */
++    @ReactProp(name = "clipRevision", defaultInt = 0)
++    public void setClipRevision(WebRTCView view, int clipRevision) {
++        view.refreshClipOutline();
++    }
++
+     /**
+      * Sets the callback for when video dimensions change.
+      *
+diff --git a/node_modules/@daily-co/react-native-webrtc/android/src/main/java/com/oney/WebRTCModule/TextureViewRenderer.java b/node_modules/@daily-co/react-native-webrtc/android/src/main/java/com/oney/WebRTCModule/TextureViewRenderer.java
+new file mode 100644
+index 0000000..04964a9
+--- /dev/null
++++ b/node_modules/@daily-co/react-native-webrtc/android/src/main/java/com/oney/WebRTCModule/TextureViewRenderer.java
+@@ -0,0 +1,178 @@
++package com.oney.WebRTCModule;
++
++import android.content.Context;
++import android.content.res.Resources;
++import android.graphics.Point;
++import android.graphics.SurfaceTexture;
++import android.os.Handler;
++import android.os.Looper;
++import android.util.AttributeSet;
++import android.view.TextureView;
++
++import org.webrtc.EglBase;
++import org.webrtc.EglRenderer;
++import org.webrtc.GlRectDrawer;
++import org.webrtc.RendererCommon;
++import org.webrtc.ThreadUtils;
++import org.webrtc.VideoFrame;
++import org.webrtc.VideoSink;
++
++import java.util.concurrent.CountDownLatch;
++
++/**
++ * TextureView-based WebRTC renderer — participates in the normal view hierarchy so
++ * {@code clipToOutline} / parent {@code overflow: hidden} round corners reliably (Oppo, etc.).
++ */
++public class TextureViewRenderer extends TextureView
++        implements VideoSink, TextureView.SurfaceTextureListener {
++
++    private final String resourceName;
++    private final RendererCommon.VideoLayoutMeasure videoLayoutMeasure =
++            new RendererCommon.VideoLayoutMeasure();
++    private final EglRenderer eglRenderer;
++    private final Handler uiThreadHandler = new Handler(Looper.getMainLooper());
++
++    private RendererCommon.RendererEvents rendererEvents;
++    private boolean initialized;
++    private boolean isFirstFrameRendered;
++    private int rotatedFrameWidth;
++    private int rotatedFrameHeight;
++    private int frameRotation;
++
++    public TextureViewRenderer(Context context) {
++        super(context);
++        resourceName = getResourceName();
++        eglRenderer = new EglRenderer(resourceName);
++        setSurfaceTextureListener(this);
++    }
++
++    public TextureViewRenderer(Context context, AttributeSet attrs) {
++        super(context, attrs);
++        resourceName = getResourceName();
++        eglRenderer = new EglRenderer(resourceName);
++        setSurfaceTextureListener(this);
++    }
++
++    public void init(EglBase.Context sharedContext, RendererCommon.RendererEvents rendererEvents) {
++        init(sharedContext, rendererEvents, EglBase.CONFIG_PLAIN, new GlRectDrawer());
++    }
++
++    public void init(
++            EglBase.Context sharedContext,
++            RendererCommon.RendererEvents rendererEvents,
++            int[] configAttributes,
++            RendererCommon.GlDrawer drawer) {
++        ThreadUtils.checkIsOnMainThread();
++        this.rendererEvents = rendererEvents;
++        if (!initialized) {
++            eglRenderer.init(sharedContext, configAttributes, drawer);
++            initialized = true;
++        }
++    }
++
++    public void release() {
++        ThreadUtils.checkIsOnMainThread();
++        if (initialized) {
++            eglRenderer.release();
++            initialized = false;
++        }
++        isFirstFrameRendered = false;
++        rotatedFrameWidth = 0;
++        rotatedFrameHeight = 0;
++        frameRotation = 0;
++    }
++
++    public void clearImage() {
++        eglRenderer.clearImage();
++    }
++
++    public void setMirror(boolean mirror) {
++        eglRenderer.setMirror(mirror);
++    }
++
++    public void setScalingType(RendererCommon.ScalingType scalingType) {
++        ThreadUtils.checkIsOnMainThread();
++        videoLayoutMeasure.setScalingType(scalingType);
++        requestLayout();
++    }
++
++    public void setScalingType(
++            RendererCommon.ScalingType matchOrientation,
++            RendererCommon.ScalingType mismatchOrientation) {
++        ThreadUtils.checkIsOnMainThread();
++        videoLayoutMeasure.setScalingType(matchOrientation, mismatchOrientation);
++        requestLayout();
++    }
++
++    @Override
++    public void onFrame(VideoFrame frame) {
++        eglRenderer.onFrame(frame);
++        updateFrameData(frame);
++    }
++
++    @Override
++    protected void onMeasure(int widthSpec, int heightSpec) {
++        ThreadUtils.checkIsOnMainThread();
++        Point size = videoLayoutMeasure.measure(
++                widthSpec, heightSpec, rotatedFrameWidth, rotatedFrameHeight);
++        setMeasuredDimension(size.x, size.y);
++    }
++
++    @Override
++    protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
++        super.onLayout(changed, left, top, right, bottom);
++        eglRenderer.setLayoutAspectRatio((right - left) / (float) (bottom - top));
++    }
++
++    @Override
++    public void onSurfaceTextureAvailable(SurfaceTexture surfaceTexture, int width, int height) {
++        ThreadUtils.checkIsOnMainThread();
++        eglRenderer.createEglSurface(surfaceTexture);
++    }
++
++    @Override
++    public void onSurfaceTextureSizeChanged(SurfaceTexture surfaceTexture, int width, int height) {}
++
++    @Override
++    public boolean onSurfaceTextureDestroyed(SurfaceTexture surfaceTexture) {
++        ThreadUtils.checkIsOnMainThread();
++        CountDownLatch latch = new CountDownLatch(1);
++        eglRenderer.releaseEglSurface(latch::countDown);
++        ThreadUtils.awaitUninterruptibly(latch);
++        return true;
++    }
++
++    @Override
++    public void onSurfaceTextureUpdated(SurfaceTexture surfaceTexture) {}
++
++    private void updateFrameData(VideoFrame frame) {
++        if (!isFirstFrameRendered) {
++            isFirstFrameRendered = true;
++            if (rendererEvents != null) {
++                rendererEvents.onFirstFrameRendered();
++            }
++        }
++
++        if (frame.getRotatedWidth() != rotatedFrameWidth
++                || frame.getRotatedHeight() != rotatedFrameHeight
++                || frame.getRotation() != frameRotation) {
++            rotatedFrameWidth = frame.getRotatedWidth();
++            rotatedFrameHeight = frame.getRotatedHeight();
++            frameRotation = frame.getRotation();
++            post(this::requestLayout);
++            if (rendererEvents != null) {
++                uiThreadHandler.post(
++                        () -> rendererEvents.onFrameResolutionChanged(
++                                rotatedFrameWidth, rotatedFrameHeight, frameRotation));
++            }
++        }
++    }
++
++    private String getResourceName() {
++        try {
++            return getResources().getResourceEntryName(getId()) + ": ";
++        } catch (Resources.NotFoundException e) {
++            return "";
++        }
++    }
++}
+diff --git a/node_modules/@daily-co/react-native-webrtc/android/src/main/java/com/oney/WebRTCModule/WebRTCView.java b/node_modules/@daily-co/react-native-webrtc/android/src/main/java/com/oney/WebRTCModule/WebRTCView.java
+index 5d14d0f..2c7cf03 100644
+--- a/node_modules/@daily-co/react-native-webrtc/android/src/main/java/com/oney/WebRTCModule/WebRTCView.java
++++ b/node_modules/@daily-co/react-native-webrtc/android/src/main/java/com/oney/WebRTCModule/WebRTCView.java
+@@ -3,10 +3,14 @@ package com.oney.WebRTCModule;
+ import android.annotation.SuppressLint;
+ import android.content.Context;
+ import android.graphics.Color;
++import android.graphics.Outline;
+ import android.graphics.Point;
++import android.graphics.drawable.GradientDrawable;
++import android.os.Build;
+ import android.util.Log;
+ import android.view.View;
+ import android.view.ViewGroup;
++import android.view.ViewOutlineProvider;
+ 
+ import androidx.core.view.ViewCompat;
+ 
+@@ -25,6 +29,7 @@ import org.webrtc.RendererCommon.RendererEvents;
+ import org.webrtc.RendererCommon.ScalingType;
+ import org.webrtc.SurfaceViewRenderer;
+ import org.webrtc.VideoTrack;
++import org.webrtc.VideoSink;
+ 
+ import java.lang.reflect.InvocationTargetException;
+ import java.lang.reflect.Method;
+@@ -139,10 +144,20 @@ public class WebRTCView extends ViewGroup {
+     private String streamURL;
+ 
+     /**
+-     * The {@link View} and {@link VideoSink} implementation which
+-     * actually renders {@link #videoTrack} on behalf of this instance.
++     * SurfaceView path (default). Switched to {@link #textureViewRenderer} when rounded clip is requested.
+      */
+-    private final SurfaceViewRenderer surfaceViewRenderer;
++    private SurfaceViewRenderer surfaceViewRenderer;
++
++    /** TextureView path for rounded PiP — clips with the normal view hierarchy. */
++    private TextureViewRenderer textureViewRenderer;
++
++    private boolean useTextureRenderer;
++
++    /** Rounded-rect clip for PiP tiles (Android SurfaceView ignores parent overflow). */
++    private float clipBorderRadiusPx = 0f;
++
++  /** Last {@link #setZOrder} from JS; restored when rounded clip is cleared. */
++    private int lastZOrder = 0;
+ 
+     /**
+      * The {@code VideoTrack}, if any, rendered by this {@code WebRTCView}.
+@@ -162,6 +177,166 @@ public class WebRTCView extends ViewGroup {
+ 
+         setMirror(false);
+         setScalingType(DEFAULT_SCALING_TYPE);
++        setBackgroundColor(Color.TRANSPARENT);
++    }
++
++    /**
++     * Clips the {@link SurfaceViewRenderer} to a rounded rect (dp converted to px).
++     */
++    public void setClipBorderRadius(float radiusPx) {
++        clipBorderRadiusPx = radiusPx;
++        if (clipBorderRadiusPx > 0f) {
++            ensureTextureRenderer();
++            scheduleClipOutlineRefresh();
++        } else {
++            applyClipOutline();
++        }
++    }
++
++    /** Swap from SurfaceView to TextureView so rounded clip works on OEM devices (Oppo, etc.). */
++    private void ensureTextureRenderer() {
++        if (useTextureRenderer) {
++            return;
++        }
++        org.webrtc.ThreadUtils.checkIsOnMainThread();
++
++        VideoTrack track = videoTrack;
++        removeRendererFromVideoTrack();
++        removeView(surfaceViewRenderer);
++        surfaceViewRenderer = null;
++
++        useTextureRenderer = true;
++        textureViewRenderer = new TextureViewRenderer(getContext());
++        addView(textureViewRenderer, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
++        textureViewRenderer.setMirror(mirror);
++        if (scalingType != null) {
++            textureViewRenderer.setScalingType(scalingType);
++        }
++
++        videoTrack = track;
++        if (track != null && ViewCompat.isAttachedToWindow(this)) {
++            tryAddRendererToVideoTrack();
++        }
++        requestLayout();
++    }
++
++    private View getRendererView() {
++        return useTextureRenderer ? textureViewRenderer : surfaceViewRenderer;
++    }
++
++    private VideoSink getVideoSink() {
++        return useTextureRenderer ? textureViewRenderer : surfaceViewRenderer;
++    }
++
++    private final Runnable clipOutlineRefreshDelayed1 = this::applyClipOutline;
++    private final Runnable clipOutlineRefreshDelayed2 = this::applyClipOutline;
++    private final Runnable clipOutlineRefreshDelayed3 = this::applyClipOutline;
++    private final Runnable clipOutlineRefreshDelayed4 = this::applyClipOutline;
++
++    /** Re-applies outline clip (e.g. after other SurfaceViews change z-order stacking). */
++    public void refreshClipOutline() {
++        scheduleClipOutlineRefresh();
++    }
++
++    /**
++     * SurfaceView stacking can settle after layout; re-apply clip on the next frames.
++     */
++    private void scheduleClipOutlineRefresh() {
++        applyClipOutline();
++        removeCallbacks(clipOutlineRefreshDelayed1);
++        removeCallbacks(clipOutlineRefreshDelayed2);
++        removeCallbacks(clipOutlineRefreshDelayed3);
++        removeCallbacks(clipOutlineRefreshDelayed4);
++        postDelayed(clipOutlineRefreshDelayed1, 48);
++        postDelayed(clipOutlineRefreshDelayed2, 200);
++        postDelayed(clipOutlineRefreshDelayed3, 500);
++        postDelayed(clipOutlineRefreshDelayed4, 900);
++    }
++
++    private static GradientDrawable createRoundedTransparentDrawable(float cornerRadiusPx) {
++        GradientDrawable drawable = new GradientDrawable();
++        drawable.setShape(GradientDrawable.RECTANGLE);
++        drawable.setCornerRadius(cornerRadiusPx);
++        drawable.setColor(Color.TRANSPARENT);
++        return drawable;
++    }
++
++    /**
++     * Media-overlay {@link SurfaceViewRenderer} often ignores outline clip (Oppo/OnePlus, etc.).
++     * Rounded PiP uses on-top stacking so {@link ViewOutlineProvider} can punch through corners.
++     */
++    private void applySurfaceZOrder() {
++        if (useTextureRenderer) {
++            return;
++        }
++        if (surfaceViewRenderer == null) {
++            return;
++        }
++        switch (lastZOrder) {
++            case 1:
++                surfaceViewRenderer.setZOrderOnTop(false);
++                surfaceViewRenderer.setZOrderMediaOverlay(true);
++                break;
++            case 2:
++                surfaceViewRenderer.setZOrderMediaOverlay(false);
++                surfaceViewRenderer.setZOrderOnTop(true);
++                break;
++            case 0:
++            default:
++                surfaceViewRenderer.setZOrderOnTop(false);
++                surfaceViewRenderer.setZOrderMediaOverlay(false);
++                break;
++        }
++    }
++
++    private void applyClipOutline() {
++        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
++            return;
++        }
++        final int w = getWidth();
++        final int h = getHeight();
++        if (clipBorderRadiusPx <= 0f) {
++            setBackground(null);
++            setLayerType(LAYER_TYPE_NONE, null);
++            setClipToOutline(false);
++            setOutlineProvider(ViewOutlineProvider.BACKGROUND);
++            setClipChildren(false);
++            View rendererView = getRendererView();
++            if (rendererView != null && !useTextureRenderer) {
++                rendererView.setBackground(null);
++                rendererView.setClipToOutline(false);
++                rendererView.setOutlineProvider(ViewOutlineProvider.BACKGROUND);
++            }
++            applySurfaceZOrder();
++            return;
++        }
++        if (w <= 0 || h <= 0) {
++            post(this::applyClipOutline);
++            return;
++        }
++        final float r = Math.min(clipBorderRadiusPx, Math.min(w, h) / 2f);
++
++        applySurfaceZOrder();
++
++        GradientDrawable roundedBg = createRoundedTransparentDrawable(r);
++        setBackground(roundedBg);
++        setClipChildren(true);
++        setClipToOutline(true);
++        setOutlineProvider(ViewOutlineProvider.BACKGROUND);
++        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
++            setLayerType(LAYER_TYPE_HARDWARE, null);
++        }
++
++        GradientDrawable surfaceBg = createRoundedTransparentDrawable(r);
++        View rendererView = getRendererView();
++        if (rendererView != null && !useTextureRenderer) {
++            // SurfaceView supports background outline; TextureView throws on setBackground().
++            rendererView.setBackground(surfaceBg);
++            rendererView.setClipToOutline(true);
++            rendererView.setOutlineProvider(ViewOutlineProvider.BACKGROUND);
++            rendererView.invalidateOutline();
++        }
++        invalidateOutline();
+     }
+ 
+     /**
+@@ -169,8 +344,14 @@ public class WebRTCView extends ViewGroup {
+      * opaque black and the surface part to transparent.
+      */
+     private void cleanSurfaceViewRenderer() {
+-        surfaceViewRenderer.setBackgroundColor(Color.BLACK);
+-        surfaceViewRenderer.clearImage();
++        if (useTextureRenderer && textureViewRenderer != null) {
++            textureViewRenderer.clearImage();
++            return;
++        }
++        if (surfaceViewRenderer != null) {
++            surfaceViewRenderer.setBackgroundColor(Color.BLACK);
++            surfaceViewRenderer.clearImage();
++        }
+     }
+ 
+     private VideoTrack getVideoTrackForStreamURL(String streamURL) {
+@@ -234,7 +415,9 @@ public class WebRTCView extends ViewGroup {
+     private void onFirstFrameRendered() {
+         post(() -> {
+             Log.d(TAG, "First frame rendered.");
+-            surfaceViewRenderer.setBackgroundColor(Color.TRANSPARENT);
++            if (!useTextureRenderer && surfaceViewRenderer != null) {
++                surfaceViewRenderer.setBackgroundColor(Color.TRANSPARENT);
++            }
+         });
+     }
+ 
+@@ -341,7 +524,8 @@ public class WebRTCView extends ViewGroup {
+                     break;
+             }
+         }
+-        surfaceViewRenderer.layout(l, t, r, b);
++        getRendererView().layout(l, t, r, b);
++        applyClipOutline();
+     }
+ 
+     /**
+@@ -350,20 +534,23 @@ public class WebRTCView extends ViewGroup {
+      */
+     private void removeRendererFromVideoTrack() {
+         if (rendererAttached) {
+-            if (videoTrack != null) {
++            VideoSink sink = getVideoSink();
++            if (videoTrack != null && sink != null) {
+                 ThreadUtils.runOnExecutor(() -> {
+                     try {
+-                        videoTrack.removeSink(surfaceViewRenderer);
++                        videoTrack.removeSink(sink);
+                     } catch (Throwable tr) {
+-                        // XXX If WebRTCModule#mediaStreamTrackRelease has already been
+-                        // invoked on videoTrack, then it is no longer safe to call removeSink
+-                        // on the instance, it will throw IllegalStateException.
++                        // Track may already be released.
+                     }
+                 });
+             }
+ 
+-            surfaceViewRenderer.release();
+-            surfaceViewRendererInstances--;
++            if (useTextureRenderer && textureViewRenderer != null) {
++                textureViewRenderer.release();
++            } else if (surfaceViewRenderer != null) {
++                surfaceViewRenderer.release();
++                surfaceViewRendererInstances--;
++            }
+             rendererAttached = false;
+ 
+             // Since this WebRTCView is no longer rendering anything, make sure
+@@ -384,9 +571,11 @@ public class WebRTCView extends ViewGroup {
+      */
+     @SuppressLint("WrongCall")
+     private void requestSurfaceViewRendererLayout() {
+-        // Google/WebRTC just call requestLayout() on surfaceViewRenderer when
+-        // they change the value of its mirror or surfaceType property.
+-        surfaceViewRenderer.requestLayout();
++        View rendererView = getRendererView();
++        if (rendererView == null) {
++            return;
++        }
++        rendererView.requestLayout();
+         // The above is not enough though when the video frame's dimensions or
+         // rotation change. The following will suffice.
+         if (!ViewCompat.isInLayout(this)) {
+@@ -406,9 +595,11 @@ public class WebRTCView extends ViewGroup {
+     public void setMirror(boolean mirror) {
+         if (this.mirror != mirror) {
+             this.mirror = mirror;
+-            surfaceViewRenderer.setMirror(mirror);
+-            // SurfaceViewRenderer takes the value of its mirror property into
+-            // account upon its layout.
++            if (useTextureRenderer && textureViewRenderer != null) {
++                textureViewRenderer.setMirror(mirror);
++            } else if (surfaceViewRenderer != null) {
++                surfaceViewRenderer.setMirror(mirror);
++            }
+             requestSurfaceViewRendererLayout();
+         }
+     }
+@@ -436,7 +627,11 @@ public class WebRTCView extends ViewGroup {
+                 return;
+             }
+             this.scalingType = scalingType;
+-            surfaceViewRenderer.setScalingType(scalingType);
++            if (useTextureRenderer && textureViewRenderer != null) {
++                textureViewRenderer.setScalingType(scalingType);
++            } else if (surfaceViewRenderer != null) {
++                surfaceViewRenderer.setScalingType(scalingType);
++            }
+         }
+         // Both this instance ant its SurfaceViewRenderer take the value of
+         // their scalingType properties into account upon their layouts.
+@@ -519,16 +714,12 @@ public class WebRTCView extends ViewGroup {
+      * @param zOrder The z-order to set on this {@code WebRTCView}.
+      */
+     public void setZOrder(int zOrder) {
+-        switch (zOrder) {
+-            case 0:
+-                surfaceViewRenderer.setZOrderMediaOverlay(false);
+-                break;
+-            case 1:
+-                surfaceViewRenderer.setZOrderMediaOverlay(true);
+-                break;
+-            case 2:
+-                surfaceViewRenderer.setZOrderOnTop(true);
+-                break;
++        lastZOrder = zOrder;
++        applySurfaceZOrder();
++        if (clipBorderRadiusPx > 0f) {
++            scheduleClipOutlineRefresh();
++        } else {
++            applyClipOutline();
+         }
+     }
+ 
+@@ -548,22 +739,25 @@ public class WebRTCView extends ViewGroup {
+             }
+ 
+             try {
+-                surfaceViewRenderer.init(sharedContext, rendererEvents);
+-                surfaceViewRendererInstances++;
++                if (useTextureRenderer) {
++                    textureViewRenderer.init(sharedContext, rendererEvents);
++                } else {
++                    surfaceViewRenderer.init(sharedContext, rendererEvents);
++                    surfaceViewRendererInstances++;
++                }
+             } catch (Exception e) {
+                 Logging.e(
+-                        TAG, "Failed to initialize surfaceViewRenderer on instance " + surfaceViewRendererInstances, e);
++                        TAG,
++                        "Failed to initialize renderer on instance " + surfaceViewRendererInstances,
++                        e);
+                 return;
+             }
+ 
++            VideoSink sink = getVideoSink();
+             ThreadUtils.runOnExecutor(() -> {
+                 try {
+-                    videoTrack.addSink(surfaceViewRenderer);
++                    videoTrack.addSink(sink);
+                 } catch (Throwable tr) {
+-                    // XXX If WebRTCModule#mediaStreamTrackRelease has already been
+-                    // invoked on videoTrack, then it is no longer safe to call addSink
+-                    // on the instance, it will throw IllegalStateException.
+-
+                     Log.e(TAG, "Failed to add renderer", tr);
+                 }
+             });
+diff --git a/node_modules/@daily-co/react-native-webrtc/index.d.ts b/node_modules/@daily-co/react-native-webrtc/index.d.ts
+index 1f6a2b1..33a44e8 100644
+--- a/node_modules/@daily-co/react-native-webrtc/index.d.ts
++++ b/node_modules/@daily-co/react-native-webrtc/index.d.ts
+@@ -25,6 +25,10 @@ export interface RTCViewProps {
+   mirror?: boolean | undefined;
+   zOrder?: number | undefined;
+   objectFit?: 'contain' | 'cover' | undefined;
++  /** Android: clips SurfaceView to a rounded rect (dp). */
++  borderRadius?: number | undefined;
++  /** Android: increment to force outline clip refresh without changing borderRadius. */
++  clipRevision?: number | undefined;
+   style?: ViewStyle | undefined;
+ }
+ 
+diff --git a/node_modules/@daily-co/react-native-webrtc/lib/typescript/RTCView.d.ts b/node_modules/@daily-co/react-native-webrtc/lib/typescript/RTCView.d.ts
+index d2d734d..de23cdc 100644
+--- a/node_modules/@daily-co/react-native-webrtc/lib/typescript/RTCView.d.ts
++++ b/node_modules/@daily-co/react-native-webrtc/lib/typescript/RTCView.d.ts
+@@ -57,6 +57,14 @@ export interface RTCVideoViewProps extends ViewProps {
+      * zOrder: number
+      */
+     zOrder?: number;
++    /**
++     * Android: rounded-rect clip radius in dp for the underlying SurfaceView.
++     */
++    borderRadius?: number;
++    /**
++     * Android: increment to force outline clip refresh without changing borderRadius.
++     */
++    clipRevision?: number;
+     /**
+      * Picture in picture options for this view. Disabled if not supplied.
+      *
