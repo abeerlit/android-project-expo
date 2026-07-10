@@ -1862,8 +1862,8 @@ export class SessionManager {
           this.removeManagedSession(callId);
 
           // Stop InCallManager if no active calls
-          if (this.managedSessions.size === 0) {
-            InCallManager.stop();
+              if (this.managedSessions.size === 0) {
+                InCallManager.stop();
           }
 
           // Wake-up UA: unregister before stop; only on Terminated (not Terminating)
@@ -1871,6 +1871,14 @@ export class SessionManager {
             const sess = managedSession.getUnderlyingSession();
             const ua = sess.userAgent;
             if (ua && this.wakeUpUAs.has(ua)) {
+              const otherActiveSessions = Array.from(this.managedSessions.values()).filter(
+                (ms) => ms.id !== callId && ms.getUnderlyingSession().userAgent === ua
+              );
+              if (otherActiveSessions.length > 0) {
+                console.log(`[SessionManager] WakeUp UA kept alive`, otherActiveSessions.map((ms) => ms.id));
+                break;
+              }
+
               const release = managedSession.getWakeReleaseBeforeUaStop?.();
               const finishStop = () => {
                 console.log(
