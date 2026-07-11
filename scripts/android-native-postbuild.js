@@ -3,6 +3,8 @@ const { loadEnv, isTruthy } = require("./load-env");
 const { copyVoxoNativeAndroid } = require("./copy-voxo-native-android");
 
 function runPostPrebuildFixes(options = {}) {
+  const { loadEnv } = require("./load-env");
+  loadEnv();
   const telephony =
     options.telephony ??
     (isTruthy("EXPO_PUBLIC_NATIVE_TELEPHONY") ||
@@ -51,17 +53,17 @@ function runPostPrebuildFixes(options = {}) {
   } catch (e) {
     console.warn("[android-native-postbuild] splash theme patch:", e.message);
   }
-  try {
-    require("./patch-android-main-application-expo.js").patchMainApplicationExpo();
-  } catch (e) {
-    console.warn("[android-native-postbuild] MainApplication expo hooks:", e.message);
-  }
   const chatNative = isTruthy("EXPO_PUBLIC_CHAT_NATIVE");
   if (chatNative) {
     try {
       require("./patch-android-clipboard.js").patchAndroidClipboard();
     } catch (e) {
       console.warn("[android-native-postbuild] clipboard patch:", e.message);
+    }
+    try {
+      require("./patch-android-giphy-sdk.js").patchAndroidGiphySdk();
+    } catch (e) {
+      console.warn("[android-native-postbuild] giphy sdk patch:", e.message);
     }
   }
 
@@ -120,6 +122,24 @@ function runPostPrebuildFixes(options = {}) {
     require("./patch-android-16kb-page-size.js").patchAndroid16kbPageSize();
   } catch (e) {
     console.warn("[android-native-postbuild] 16kb page size:", e.message);
+  }
+
+  try {
+    require("./patch-android-release-signing.js").patchAndroidReleaseSigning();
+  } catch (e) {
+    console.warn("[android-native-postbuild] release signing:", e.message);
+  }
+
+  try {
+    require("./patch-android-main-application-expo.js").patchMainApplicationExpo();
+  } catch (e) {
+    console.warn("[android-native-postbuild] MainApplication expo hooks:", e.message);
+  }
+
+  try {
+    require("./patch-android-gated-react-packages.js").patchAndroidGatedReactPackages();
+  } catch (e) {
+    console.warn("[android-native-postbuild] gated react packages:", e.message);
   }
 
   return true;

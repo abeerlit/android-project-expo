@@ -15,6 +15,68 @@ const NDK_VERSION = "28.0.13004108";
 const KOTLIN_VERSION = "2.0.21";
 const MARKER = "// voxo-16kb-page-size";
 
+const JNI_LIBS_BLOCK = `        jniLibs {
+            excludes += ["**/armeabi/**"]
+            useLegacyPackaging = false
+        }`;
+
+function repairPackagingBlock(body) {
+  // packaging { jniLibs { ... } androidResources — missing packaging close brace
+  body = body.replace(
+    /packaging\s*\{\s*jniLibs\s*\{[\s\S]*?\n\s*\}\s*\n(\s*)androidResources/g,
+    `packaging {\n${JNI_LIBS_BLOCK}\n    }\n$1androidResources`
+  );
+
+  // packaging { jniLibs { ... } } } androidResources — extra close brace
+  body = body.replace(
+    /packaging\s*\{\s*jniLibs\s*\{[\s\S]*?\n\s*\}\s*\n\s*\}\s*\n\s*\}\s*\n(\s*)androidResources/g,
+    `packaging {\n${JNI_LIBS_BLOCK}\n    }\n$1androidResources`
+  );
+
+  return body;
+}
+
+function patchJniLibsInPackaging(body) {
+  if (!body.includes("packaging {") || !body.includes("jniLibs {")) {
+    return body;
+  }
+
+  if (
+    body.includes('excludes += ["**/armeabi/**"]') &&
+    body.includes("useLegacyPackaging = false")
+  ) {
+    return repairPackagingBlock(body);
+  }
+
+  if (body.includes("useLegacyPackaging")) {
+    body = body.replace(
+      /useLegacyPackaging[^\n]*/,
+      "useLegacyPackaging = false"
+    );
+  } else {
+    body = body.replace(
+      /(packaging\s*\{\s*jniLibs\s*\{)/,
+      `$1\n            excludes += ["**/armeabi/**"]\n            useLegacyPackaging = false`
+    );
+  }
+
+  if (!body.includes('excludes += ["**/armeabi/**"]')) {
+    body = body.replace(
+      /(packaging\s*\{\s*jniLibs\s*\{)/,
+      `$1\n            excludes += ["**/armeabi/**"]`
+    );
+  }
+
+  return repairPackagingBlock(body);
+}
+
+function insertPackagingBeforeAndroidResources(body) {
+  return body.replace(
+    /(\n\s*)androidResources\s*\{/,
+    `$1packaging {\n${JNI_LIBS_BLOCK}\n    }\n$1androidResources {`
+  );
+}
+
 function removeLinphoneSdk() {
   let changed = false;
 
@@ -109,41 +171,27 @@ function patchAppBuildGradle() {
     );
   }
 
-  if (!body.includes("useLegacyPackaging = false")) {
-    if (body.includes("packaging {")) {
-      body = body.replace(
-        /packaging\s*\{[^}]*\}/s,
-        `packaging {
-        jniLibs {
-            excludes += ["**/armeabi/**"]
-            useLegacyPackaging = false
-        }
-    }`
-      );
-    } else if (body.includes("packagingOptions {")) {
-      body = body.replace(
-        /packagingOptions\s*\{[^}]*\}/s,
-        `packaging {
-        jniLibs {
-            excludes += ["**/armeabi/**"]
-            useLegacyPackaging = false
-        }
-    }`
-      );
-    } else {
-      body = body.replace(
-        /(buildTypes\s*\{[\s\S]*?\n    \})/,
-        `$1
+  if (body.includes("packaging {")) {
+    body = patchJniLibsInPackaging(body);
+  } else if (body.includes("packagingOptions {")) {
+    body = body.replace(
+      /packagingOptions\s*\{[\s\S]*?\}/,
+      `packaging {\n${JNI_LIBS_BLOCK}\n    }`
+    );
+    body = repairPackagingBlock(body);
+  } else if (body.includes("androidResources {")) {
+    body = insertPackagingBeforeAndroidResources(body);
+  } else {
+    body = body.replace(
+      /(buildTypes\s*\{[\s\S]*?\n    \})/,
+      `$1
     packaging {
-        jniLibs {
-            excludes += ["**/armeabi/**"]
-            useLegacyPackaging = false
-        }
+${JNI_LIBS_BLOCK}
     }`
-      );
-    }
+    );
   }
 
+  body = repairPackagingBlock(body);
   fs.writeFileSync(APP_BUILD, body);
   return true;
 }

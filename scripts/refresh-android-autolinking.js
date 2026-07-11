@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Regenerate android/build/generated/autolinking/autolinking.json from .env flags
- * and voxo-autolink-settings.gradle so Gradle includes RN native modules.
+ * and voxo-autolink gradle snippets (gated native modules).
  */
 const fs = require("fs");
 const path = require("path");
@@ -108,7 +108,7 @@ async function refreshAndroidAutolinking() {
     `[refresh-autolinking] wrote ${names.length} deps → autolinking.json + voxo-autolink-settings.gradle`
   );
   console.log(
-    `[refresh-autolinking] telephony=${names.includes("react-native-callkeep")} notifications=${names.includes("@notifee/react-native")} meetings=${names.includes("@daily-co/react-native-daily-js")}`
+    `[refresh-autolinking] telephony=${names.includes("react-native-callkeep")} notifications=${names.includes("@notifee/react-native")} meetings=${names.includes("@daily-co/react-native-daily-js")} chat=${names.includes("@giphy/react-native-sdk")}`
   );
   return true;
 }

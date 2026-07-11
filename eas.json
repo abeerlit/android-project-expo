@@ -38,6 +38,7 @@
         "EXPO_PUBLIC_NATIVE_NOTIFICATIONS": "1",
         "EXPO_PUBLIC_MEETINGS_NATIVE": "1",
         "EXPO_PUBLIC_CHAT_NATIVE": "1",
+        "EXPO_PUBLIC_NATIVE_FULL": "1",
         "ANDROID_PACKAGE": "co.voxo.android",
         "DISPLAY_NAME": "VOXO Connect",
         "GOOGLE_SERVICES_JSON": "./native-resources/google-services.json",

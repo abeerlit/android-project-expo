@@ -1,15 +1,28 @@
 // webrtc-polyfill.js
 import "react-native-get-random-values";
-import {
-  MediaStreamTrack,
-  RTCRtpSender,
-  RTCRtpReceiver,
-  RTCDataChannel,
-  permissions,
-  registerGlobals
-} from "@daily-co/react-native-webrtc";
+import { NativeModules } from "react-native";
+
+export function isWebRtcNativeLinked() {
+  return Boolean(NativeModules.WebRTCModule);
+}
 
 export function setupWebRTCPolyfill() {
+  if (!isWebRtcNativeLinked()) {
+    console.warn(
+      "[webrtc-polyfill] WebRTCModule not linked — skipping polyfill (rebuild dev client with EXPO_PUBLIC_MEETINGS_NATIVE=1 or EXPO_PUBLIC_NATIVE_TELEPHONY=1)"
+    );
+    return;
+  }
+
+  const {
+    MediaStreamTrack,
+    RTCRtpSender,
+    RTCRtpReceiver,
+    RTCDataChannel,
+    permissions,
+    registerGlobals
+  } = require("@daily-co/react-native-webrtc");
+
   // Register standard globals first
   registerGlobals();
 

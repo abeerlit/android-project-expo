@@ -1,7 +1,7 @@
 import "./expo-shell/setupDevLogBox.ts";
 import "react-native-gesture-handler";
 import "react-native-get-random-values";
-import { AppRegistry, Platform } from "react-native";
+import { AppRegistry, NativeModules, Platform } from "react-native";
 
 const telephonyOn =
   process.env.EXPO_PUBLIC_NATIVE_TELEPHONY === "1" ||
@@ -11,12 +11,16 @@ const meetingsOn =
   process.env.EXPO_PUBLIC_MEETINGS_NATIVE === "1" ||
   process.env.EXPO_PUBLIC_MEETINGS_NATIVE === "true";
 
-if (telephonyOn || meetingsOn) {
+if ((telephonyOn || meetingsOn) && NativeModules.WebRTCModule) {
   try {
     require("./expo-shell/setupWebRTCPolyfill.ts").runSetupWebRTCPolyfill();
   } catch (e) {
     console.warn("[expo-shell] early WebRTC polyfill skipped:", e);
   }
+} else if ((telephonyOn || meetingsOn) && !NativeModules.WebRTCModule) {
+  console.warn(
+    "[expo-shell] WebRTC env flags are on but WebRTCModule is not linked — rebuild the dev client with EXPO_PUBLIC_MEETINGS_NATIVE=1 or EXPO_PUBLIC_NATIVE_TELEPHONY=1"
+  );
 }
 
 if (Platform.OS === "ios" && telephonyOn) {

@@ -1,10 +1,11 @@
 {
   "name": "voxo-connect-android-expo",
-  "version": "2.0.50",
+  "version": "2.0.54",
   "private": true,
   "main": "index.js",
   "scripts": {
-    "postinstall": "patch-package && node scripts/apply-callkeep-patch.cjs 2>/dev/null || true && node scripts/sync-ui-branding.js",
+    "postinstall": "patch-package && node scripts/apply-callkeep-patch.cjs 2>/dev/null || true && node scripts/patch-android-giphy-sdk.js && node scripts/sync-ui-branding.js",
+    "eas-build-pre-install": "node scripts/eas-build-pre-install.js",
     "ui-branding:sync": "node scripts/sync-ui-branding.js",
     "vendor:sync-bare": "node scripts/vendor-sync-from-bare.js",
     "env:sync-ios": "node scripts/sync-env-from-ios-expo.js",
@@ -15,6 +16,8 @@
     "android:reverse": "adb reverse tcp:8082 tcp:8082 && adb reverse tcp:8081 tcp:8082 && adb reverse --list",
     "android:open": "bash scripts/android-device-metro.sh",
     "android": "node scripts/refresh-android-autolinking.js && expo run:android",
+    "android:bundle": "node scripts/refresh-android-autolinking.js && cd android && ./gradlew bundleRelease",
+    "android:release": "node scripts/eas-build-pre-install.js && cd android && ./gradlew bundleRelease && node ../scripts/verify-play-release-aab.js app/build/outputs/bundle/release/app-release.aab",
     "android:setup": "node scripts/android-setup.js",
     "android:setup:clean": "node scripts/android-setup.js --prebuild-clean",
     "android:setup:verify": "node scripts/android-setup.js --verify",

@@ -52,8 +52,8 @@ function patchMainApplicationExpo() {
       "override val reactNativeHost: ReactNativeHost = ReactNativeHostWrapper(\n      this,\n      object : DefaultReactNativeHost(this) {"
     );
     body = body.replace(
-      /override val isHermesEnabled: Boolean = BuildConfig\.IS_HERMES_ENABLED\n\s*}\n\s*\)/,
-      "override val isHermesEnabled: Boolean = BuildConfig.IS_HERMES_ENABLED\n      }\n  )"
+      /(override val isHermesEnabled: Boolean = BuildConfig\.IS_HERMES_ENABLED\n)(\s*)\}/,
+      "$1$2      }\n  )"
     );
     changed = true;
   }
@@ -71,23 +71,20 @@ function patchMainApplicationExpo() {
   }
 
   if (!body.includes("ApplicationLifecycleDispatcher.onApplicationCreate(this)")) {
-    body = body.replace(
-      /(\s+)(startNativeSipIfLoggedIn\(\)|initCallKeep\(\)|load\(\))\n(\s+)\}/,
-      (match, indent, lastCall, closeIndent, offset, full) => {
-        if (full.includes("ApplicationLifecycleDispatcher.onApplicationCreate")) return match;
-        return `${indent}${lastCall}\n${indent}ApplicationLifecycleDispatcher.onApplicationCreate(this)\n${closeIndent}}`;
-      }
-    );
-    if (!body.includes("ApplicationLifecycleDispatcher.onApplicationCreate(this)")) {
+    if (body.includes("startNativeSipIfLoggedIn()")) {
       body = body.replace(
-        /super\.onCreate\(\)[\s\S]*?(\n\s+)\}/,
-        (match, closeIndent) => {
-          if (match.includes("ApplicationLifecycleDispatcher.onApplicationCreate")) return match;
-          return match.replace(
-            closeIndent + "}",
-            `${closeIndent}ApplicationLifecycleDispatcher.onApplicationCreate(this)\n${closeIndent}}`
-          );
-        }
+        /startNativeSipIfLoggedIn\(\)\n/,
+        "startNativeSipIfLoggedIn()\n    ApplicationLifecycleDispatcher.onApplicationCreate(this)\n"
+      );
+    } else if (body.includes("initCallKeep()")) {
+      body = body.replace(
+        /initCallKeep\(\)\n/,
+        "initCallKeep()\n    ApplicationLifecycleDispatcher.onApplicationCreate(this)\n"
+      );
+    } else {
+      body = body.replace(
+        /SoLoader\.init\(this, OpenSourceMergedSoMapping\)\n/,
+        "SoLoader.init(this, OpenSourceMergedSoMapping)\n    ApplicationLifecycleDispatcher.onApplicationCreate(this)\n"
       );
     }
     changed = true;

@@ -96,19 +96,33 @@ function mergeMainApplication(options = {}) {
   const companionBlock = extractBareBlock(bare, "companion object {", "}\n}");
 
   if (notifications && channelsBlock && !body.includes("createNotificationChannels()")) {
-    body = body.replace(
-      "ApplicationLifecycleDispatcher.onApplicationCreate(this)",
-      `createNotificationChannels()\n    ${telephony ? "initCallKeep()\n    " : ""}ApplicationLifecycleDispatcher.onApplicationCreate(this)`
-    );
+    if (body.includes("ApplicationLifecycleDispatcher.onApplicationCreate(this)")) {
+      body = body.replace(
+        "ApplicationLifecycleDispatcher.onApplicationCreate(this)",
+        `createNotificationChannels()\n    ${telephony ? "initCallKeep()\n    " : ""}ApplicationLifecycleDispatcher.onApplicationCreate(this)`
+      );
+    } else {
+      body = body.replace(
+        /startNativeSipIfLoggedIn\(\)\n/,
+        `createNotificationChannels()\n    ${telephony ? "initCallKeep()\n    " : ""}startNativeSipIfLoggedIn()\n`
+      );
+    }
     body = body.replace(
       /}\n$/,
       `\n  ${channelsBlock}\n  ${telephony ? callKeepBlock + "\n" : ""}${bare.includes("private fun getApplicationName") ? extractBareBlock(bare, "private fun getApplicationName", "companion object") : ""}\n  ${companionBlock}\n}\n`
     );
   } else if (telephony && callKeepBlock && !body.includes("initCallKeep()")) {
-    body = body.replace(
-      "ApplicationLifecycleDispatcher.onApplicationCreate(this)",
-      `initCallKeep()\n    ApplicationLifecycleDispatcher.onApplicationCreate(this)`
-    );
+    if (body.includes("ApplicationLifecycleDispatcher.onApplicationCreate(this)")) {
+      body = body.replace(
+        "ApplicationLifecycleDispatcher.onApplicationCreate(this)",
+        `initCallKeep()\n    ApplicationLifecycleDispatcher.onApplicationCreate(this)`
+      );
+    } else {
+      body = body.replace(
+        /startNativeSipIfLoggedIn\(\)\n/,
+        "initCallKeep()\n    startNativeSipIfLoggedIn()\n"
+      );
+    }
     if (!body.includes("companion object")) {
       body = body.replace(/}\n$/, `\n  ${callKeepBlock}\n  ${companionBlock}\n}\n`);
     }
