@@ -224,6 +224,14 @@ export class SippyCup extends EventEmitter {
   }
 
   /**
+   * Cancel a pending inbound session (wake-up UA) before the INVITE arrives.
+   * Used when the user declines from the notification before the SIP session is established.
+   */
+  public cancelPendingInboundSession(callUuid: string): void {
+    this.sessionManager.cancelPendingInboundSession(callUuid);
+  }
+
+  /**
    * Register with the SIP server
    * @returns Promise that resolves when registration is complete
    */

@@ -1231,6 +1231,7 @@ export const SoftphoneProvider: React.FC<{ children: React.ReactNode }> = ({
           try {
             const cup = sippyCupRef.current;
             if (cup) {
+              cup.cancelPendingInboundSession(callId);
               await cup.hangupCall(callId);
             }
           } catch (e) {

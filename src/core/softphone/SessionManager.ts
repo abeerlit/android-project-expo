@@ -84,6 +84,8 @@ export class SessionManager {
   private canonicalToAliases: Map<string, Set<string>> = new Map();
   private localStream: MediaStream | null = null;
   private wakeUpUAs: Set<UserAgent> = new Set();
+  /** Maps callUuid → wake-up UA so it can be stopped before the INVITE arrives (user declined early). */
+  private pendingInboundUAs: Map<string, UserAgent> = new Map();
 
   /**
    * Android (via SippyCup): when true, reject new INVITEs on the primary UserAgent.
@@ -1391,6 +1393,7 @@ export class SessionManager {
       }
     }
     this.wakeUpUAs.clear();
+    this.pendingInboundUAs.clear();
   }
 
   /**
@@ -1475,6 +1478,7 @@ export class SessionManager {
                 }
 
                 wakeInviteConsumed = true;
+                this.pendingInboundUAs.delete(callUuid);
 
                 console.log(
                   `🔶 [SessionManager] ✅ WakeUp UA received INVITE for ${callUuid}`
@@ -1554,6 +1558,7 @@ export class SessionManager {
           console.log(`🔶 [SessionManager] Creating new UserAgent for wake-up`);
           wakeUpUA = new UserAgent(userAgentOptions);
           this.wakeUpUAs.add(wakeUpUA);
+          this.pendingInboundUAs.set(callUuid, wakeUpUA);
 
           console.log(`🔶 [SessionManager] Starting UserAgent...`);
           await wakeUpUA.start();
@@ -1588,6 +1593,7 @@ export class SessionManager {
                   `🔶 [SessionManager] ❌ RECEIVE_INVITE_TIMEOUT (8 seconds)`
                 );
                 markWakeEstablishSettled();
+                this.pendingInboundUAs.delete(callUuid);
                 reject({
                   error: "RECEIVE_INVITE_TIMEOUT",
                   message: "Timeout waiting for invite after 8 seconds"
@@ -1615,6 +1621,7 @@ export class SessionManager {
               );
 
               markWakeEstablishSettled();
+              this.pendingInboundUAs.delete(callUuid);
               // Check for specific error codes (like voxo-mobile does)
               // In sip.js, we need to check the registerer's last response
               reject({
@@ -1645,6 +1652,7 @@ export class SessionManager {
           );
 
           markWakeEstablishSettled();
+          this.pendingInboundUAs.delete(callUuid);
           // Cleanup
           if (timeoutHandle) {
             clearTimeout(timeoutHandle);
@@ -1658,6 +1666,20 @@ export class SessionManager {
         }
       })();
     });
+  }
+
+  /**
+   * Cancel a pending inbound session (wake-up UA) before the INVITE arrives.
+   * Call this when the user declines from the notification before the SIP session is established,
+   * to prevent the orphaned wake-up UA from delivering the INVITE and re-triggering the call UI.
+   */
+  public cancelPendingInboundSession(callUuid: string): void {
+    const ua = this.pendingInboundUAs.get(callUuid);
+    if (!ua) return;
+    console.log(`🔶 [SessionManager] cancelPendingInboundSession: stopping wake-up UA for ${callUuid} (early decline)`);
+    this.pendingInboundUAs.delete(callUuid);
+    ua.stop().catch(() => {});
+    this.wakeUpUAs.delete(ua);
   }
 
   /**
