@@ -100,6 +100,18 @@ export class SippyCup extends EventEmitter {
 
     // Set up event listeners for call state changes
     this.on("incomingCall", (callId, callInfo) => {
+      // Skip displayIncomingCall if call was already answered from killed-state notification
+      // (headless mapping registered via registerHeadlessCallMapping)
+      const hasHeadlessMapping = this.nativeIntegration.hasCallMapping(callId) ||
+        (callInfo.callUuid && this.nativeIntegration.hasCallMapping(callInfo.callUuid));
+      
+      if (hasHeadlessMapping) {
+        console.warn(
+          `📞 [SippyCup] Skipping displayIncomingCall for ${callId} — already answered from headless notification`
+        );
+        return;
+      }
+      
       this.ensureNativeReady()
         .then(() => this.nativeIntegration.displayIncomingCall(callId, callInfo))
         .catch((error) => {

@@ -271,7 +271,10 @@ export class NativeIntegration {
               );
               if (result === "ANSWER") {
                 const voipBridge = VoipBridge.getInstance();
+                // On Android, custom notification answers are always VoIP (FCM push flow)
+                // Check if this is a VoIP call OR if it has a pending SIP session
                 const isVoip =
+                  Platform.OS === "android" || // Android custom notifications are always VoIP
                   voipBridge.isVoipCall(callUUID) ||
                   voipBridge.isVoipCall(callId) ||
                   hasPendingSipSession(callId) ||
@@ -281,7 +284,8 @@ export class NativeIntegration {
                     voipBridge.isVoipCall(callUUID) ? callUUID
                     : voipBridge.isVoipCall(callId) ? callId
                     : hasPendingSipSession(callId) ? callId
-                    : callUUID;
+                    : hasPendingSipSession(callUUID) ? callUUID
+                    : callUUID; // Default to callUUID for Android
                   Notifications.stopIncomingCallRingtone?.(callUUID);
                   voipBridge.handleCallAnswer(answerId);
                 } else {
@@ -1360,6 +1364,22 @@ export class NativeIntegration {
     console.warn(
       `📞 [NI] registerHeadlessCallMapping callUUID=${callUuid} → callId=${sipSessionId}`
     );
+  }
+
+  /**
+   * Check if a call UUID or session ID already has a mapping (e.g., from headless answer).
+   */
+  public hasCallMapping(callIdOrUuid: string): boolean {
+    if (this.activeCalls.has(callIdOrUuid)) {
+      return true;
+    }
+    // Check if it's a mapped session ID
+    for (const [uuid, sessionId] of this.activeCalls.entries()) {
+      if (sessionId === callIdOrUuid) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /**
