@@ -1,6 +1,7 @@
-import React from "react";
+import React, { useState } from "react";
 import { Platform } from "react-native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { takeBootLaunchFromAnswerForInitialRoute } from "core/softphone/launchFromAnswerBoot.ts";
 import { useNavigation } from "@react-navigation/native";
 import {
   ChatParams,
@@ -79,7 +80,13 @@ function InCallScreenWithErrorBoundary(props: any) {
 }
 
 export const AuthenticatedStackNavigator = () => {
-  const initialRoute = Routes.BottomTabNavigator;
+  // Android kill-state Answer: native already accepted the call, so open straight on InCallScreen.
+  // Routing through BottomTabNavigator first is what made Home flash before the call screen.
+  // Read once per mount (and only ever once per process) so a later remount can't reopen a dead call.
+  const [bootCall] = useState(() => takeBootLaunchFromAnswerForInitialRoute());
+  const initialRoute = bootCall
+    ? Routes.InCallScreen
+    : Routes.BottomTabNavigator;
 
   return (
     <AuthNavigator.Navigator
@@ -129,6 +136,7 @@ export const AuthenticatedStackNavigator = () => {
       <AuthNavigator.Screen
         name="InCallScreen"
         component={InCallScreenWithErrorBoundary}
+        initialParams={bootCall ? { callId: bootCall.callUuid } : undefined}
         options={{
           headerShown: false,
           animation: "none"

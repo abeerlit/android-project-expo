@@ -30,6 +30,10 @@ import {
 import { State } from "store/types.ts";
 import { VoipBridge } from "core/softphone/VoipBridge.ts";
 import { getAndClearLaunchIntent } from "core/LaunchIntent.ts";
+import {
+  getBootLaunchFromAnswer,
+  clearBootLaunchFromAnswer
+} from "core/softphone/launchFromAnswerBoot.ts";
 import { v4 as uuidv4 } from "uuid";
 import Geolocation from "@react-native-community/geolocation";
 import { useNavigation } from "@react-navigation/native";
@@ -406,6 +410,13 @@ function pickPreferredActiveSessionId(
 }
 
 /**
+ * Android kill-state answer: how long we keep the optimistic InCall screen up waiting for the SIP
+ * session (cold start → REGISTER → INVITE → 200 OK) before treating the launch as stale.
+ */
+const LAUNCH_FROM_ANSWER_RESOLVE_TIMEOUT_MS = 20000;
+const LAUNCH_FROM_ANSWER_POLL_MS = 400;
+
+/**
  * Convert CallInfo to ContextCallInfo
  */
 const callInfoToContextCall = (
@@ -459,17 +470,52 @@ export const SoftphoneProvider: React.FC<{ children: React.ReactNode }> = ({
   );
   const navigation = useNavigation<any>();
 
+  /** Android kill-state Answer, known synchronously at boot (drives the initial route too). */
+  const bootLaunchFromAnswer = getBootLaunchFromAnswer();
+
   // Simplified state - single source of truth
-  const [state, setState] = useState<SoftphoneContextState>({
-    isInitialized: false,
-    isInitializing: false,
-    isRegistered: false,
-    isRegistering: false,
-    config: null,
-    calls: {},
-    activeCallId: undefined,
-    hasOngoingCall: false,
-    error: undefined
+  const [state, setState] = useState<SoftphoneContextState>(() => {
+    const base: SoftphoneContextState = {
+      isInitialized: false,
+      isInitializing: false,
+      isRegistered: false,
+      isRegistering: false,
+      config: null,
+      calls: {},
+      activeCallId: undefined,
+      hasOngoingCall: false,
+      error: undefined
+    };
+
+    // Native already answered this call. Seed a CONNECTING placeholder in the very first state so
+    // InCallScreen (the initial route) renders the call immediately instead of finding no active
+    // call and bouncing back to the tabs. It is reconciled onto the real SIP session the moment
+    // that session comes up — see processLaunchFromAnswer.
+    if (!bootLaunchFromAnswer) return base;
+
+    const placeholder = callInfoToContextCall(
+      {
+        id: bootLaunchFromAnswer.callUuid,
+        callUuid: bootLaunchFromAnswer.callUuid,
+        state: CallState.CONNECTING,
+        direction: CallDirection.INCOMING,
+        remoteDisplayName: bootLaunchFromAnswer.callerName,
+        remoteUri: `sip:${bootLaunchFromAnswer.callerNumber}@dev-sip.voxo.co`,
+        startTime: new Date(),
+        isMuted: false,
+        isOnHold: false,
+        isSpeakerOn: false,
+        isEmergency: false
+      },
+      bootLaunchFromAnswer.callUuid
+    );
+
+    return {
+      ...base,
+      calls: { [placeholder.sessionId]: placeholder },
+      activeCallId: placeholder.sessionId,
+      hasOngoingCall: true
+    };
   });
 
   // SippyCup instance
@@ -484,8 +530,18 @@ export const SoftphoneProvider: React.FC<{ children: React.ReactNode }> = ({
   const launchFromAnswerStaleLoggedRef = useRef<Set<string>>(new Set());
   /** One-shot retry of native launch-from-answer after SessionManager.register (Android). */
   const launchFromAnswerPostRegisterRetryDoneRef = useRef(false);
-  /** Android: one deferred re-check so cold-start-from-notification can wait for SIP; second pass with no session = stale (e.g. Metro reload). */
-  const launchFromAnswerAndroidDeferRef = useRef<Map<string, number>>(new Map());
+  /**
+   * Android kill-state answer: callUuids currently shown via an optimistic CONNECTING placeholder
+   * while SIP comes up. Seeded with the boot call so the row we put in the initial state is never
+   * mistaken for evidence of a live session.
+   */
+  const launchFromAnswerPlaceholderRef = useRef<Set<string>>(
+    new Set(bootLaunchFromAnswer ? [bootLaunchFromAnswer.callUuid] : [])
+  );
+  /** Android kill-state answer: in-flight "wait for the SIP session" loops, keyed by callUuid. */
+  const launchFromAnswerResolveRef = useRef<
+    Map<string, { timer: ReturnType<typeof setTimeout>; startedAt: number }>
+  >(new Map());
   const launchIntentCheckedRef = useRef(false);
   const handledEndedCallIdsRef = useRef<Set<string>>(new Set());
   const isCompletingAttendedTransferRef = useRef(false);
@@ -2097,9 +2153,90 @@ export const SoftphoneProvider: React.FC<{ children: React.ReactNode }> = ({
     promoteAnsweredCallToUi
   ]);
 
+  /** Drain the native launch-from-answer bundle once JS owns (or has given up on) the call. */
+  const consumeNativeLaunchFromAnswer = useCallback((callUuid: string) => {
+    if (Platform.OS !== "android") return;
+    const Notifications = NativeModules.VoxoConnectAndroidNotifications as {
+      consumeLaunchFromAnswerIntent?: (uuid: string) => Promise<boolean>;
+    };
+    Notifications?.consumeLaunchFromAnswerIntent?.(callUuid)?.catch?.(() => {});
+  }, []);
+
+  const stopLaunchFromAnswerResolve = useCallback((callUuid: string) => {
+    const entry = launchFromAnswerResolveRef.current.get(callUuid);
+    if (!entry) return;
+    clearTimeout(entry.timer);
+    launchFromAnswerResolveRef.current.delete(callUuid);
+  }, []);
+
+  /**
+   * Android kill-state Answer: open InCallScreen immediately with a CONNECTING placeholder.
+   * At this point the SIP session usually does not exist yet (cold start → REGISTER → INVITE →
+   * 200 OK all still in flight), and the user must not be parked on Home while that happens.
+   */
+  const openOptimisticInCallForLaunchFromAnswer = useCallback(
+    (callUuid: string, callerName: string, callerNumber: string) => {
+      if (launchFromAnswerPlaceholderRef.current.has(callUuid)) return;
+      // A real call row already exists — no need to fabricate one.
+      if (resolveCallsRecordKey(stateRef.current.calls, callUuid)) return;
+
+      launchFromAnswerPlaceholderRef.current.add(callUuid);
+      const placeholder: CallInfo = {
+        id: callUuid,
+        callUuid,
+        state: CallState.CONNECTING,
+        direction: CallDirection.INCOMING,
+        remoteDisplayName: callerName,
+        remoteUri: `sip:${callerNumber}@dev-sip.voxo.co`,
+        startTime: new Date(),
+        isMuted: false,
+        isOnHold: false,
+        isSpeakerOn: false,
+        isEmergency: false
+      };
+      addCall(callInfoToContextCall(placeholder, callUuid));
+      setActiveCallId(callUuid);
+      setCallActive(true);
+      navigateToInCallScreen(callUuid);
+      androidCallFlowLog(
+        "launchFromAnswer",
+        "optimistic InCall shown while SIP session comes up",
+        { callUuid }
+      );
+    },
+    [addCall, setActiveCallId, navigateToInCallScreen]
+  );
+
+  /** The SIP session never showed up: tear the placeholder down and return to the tabs. */
+  const abandonLaunchFromAnswerPlaceholder = useCallback(
+    (callUuid: string) => {
+      if (!launchFromAnswerPlaceholderRef.current.delete(callUuid)) return;
+      removeCall(callUuid);
+      setCallActive(false);
+      setState((prev) => ({
+        ...prev,
+        activeCallId:
+          prev.activeCallId === callUuid ? undefined : prev.activeCallId
+      }));
+      if (getCurrentRoute()?.name === Routes.InCallScreen) {
+        try {
+          navigation.navigate(Routes.BottomTabNavigator as never);
+        } catch (_e) {}
+      }
+    },
+    [removeCall, navigation]
+  );
+
   /**
    * Kill-state Answer: native reports launchFromAnswer + callUuid before SlimSip/Redux may exist.
-   * Android uses SessionManager (not SlimSip) — trust native Answer and open InCall; iOS keeps stale guard.
+   *
+   * Android uses SessionManager (not SlimSip). The native side has already accepted the call, so we
+   * navigate to InCallScreen straight away and keep polling for the live session in the background,
+   * reconciling the placeholder once it appears. Previously we waited for the session, deferred once
+   * for 1.5s, then dropped the launch entirely — on a cold start the SIP leg is rarely up that fast,
+   * so the user landed on Home with an ongoing-call banner (and the Keypad tab) instead of InCall.
+   *
+   * iOS keeps the stale guard: CallKit owns that UI.
    */
   const processLaunchFromAnswer = useCallback(
     (
@@ -2109,7 +2246,13 @@ export const SoftphoneProvider: React.FC<{ children: React.ReactNode }> = ({
       callerNumber?: string
     ) => {
       if (!launchFromAnswer || !callUuid) return;
-      if (handledLaunchFromAnswerRef.current.has(callUuid)) return;
+      // Another path (headless adopt / incomingVoipCall) already promoted this call — stand down,
+      // and drop the placeholder claim so we never tear that real call row back down.
+      if (handledLaunchFromAnswerRef.current.has(callUuid)) {
+        stopLaunchFromAnswerResolve(callUuid);
+        launchFromAnswerPlaceholderRef.current.delete(callUuid);
+        return;
+      }
 
       const existingKey = resolveCallsRecordKey(
         stateRef.current.calls,
@@ -2122,9 +2265,14 @@ export const SoftphoneProvider: React.FC<{ children: React.ReactNode }> = ({
         existingCall?.state === CallState.ENDED ||
         existingCall?.state === CallState.FAILED
       ) {
+        stopLaunchFromAnswerResolve(callUuid);
+        launchFromAnswerPlaceholderRef.current.delete(callUuid);
+        consumeNativeLaunchFromAnswer(callUuid);
         return;
       }
 
+      // Our own optimistic row is not evidence of a live session.
+      const isPlaceholder = launchFromAnswerPlaceholderRef.current.has(callUuid);
       const bridge = VoipBridge.getInstance();
       const existingSipSession = getSipSession(callUuid);
       const hasVoipBridge =
@@ -2143,41 +2291,34 @@ export const SoftphoneProvider: React.FC<{ children: React.ReactNode }> = ({
         smInfo?.state === CallState.CONNECTING ||
         smInfo?.state === CallState.INCOMING;
       const hasLive =
-        !!existingCall ||
+        (!!existingCall && !isPlaceholder) ||
         !!existingSipSession ||
         hasVoipBridge ||
         hasSessionManagerCall ||
         hasHeadlessLive;
 
       if (hasLive) {
-        launchFromAnswerAndroidDeferRef.current.delete(callUuid);
+        stopLaunchFromAnswerResolve(callUuid);
+        launchFromAnswerPlaceholderRef.current.delete(callUuid);
+        handledLaunchFromAnswerRef.current.add(callUuid);
+        const caller =
+          liveInfo?.remoteDisplayName || callerName || "Unknown Caller";
+        const number =
+          liveInfo?.remoteUri?.match(/^sip:(.+)@/)?.[1] ||
+          callerNumber ||
+          "Unknown";
+        // Reconciles the placeholder onto the real session id (remove + re-add when they differ).
+        promoteAnsweredCallToUi(callUuid, caller, number, liveInfo);
+        consumeNativeLaunchFromAnswer(callUuid);
+        clearBootLaunchFromAnswer();
+        logger.debug("Launch-from-answer: navigated to InCallScreen", {
+          callUuid,
+          platform: Platform.OS
+        });
+        return;
       }
 
-      if (!hasLive) {
-        if (Platform.OS === "android") {
-          const deferPass = launchFromAnswerAndroidDeferRef.current.get(callUuid) ?? 0;
-          if (deferPass === 0) {
-            launchFromAnswerAndroidDeferRef.current.set(callUuid, 1);
-            setTimeout(() => {
-              processLaunchFromAnswer(
-                launchFromAnswer,
-                callUuid,
-                callerName,
-                callerNumber
-              );
-            }, 1500);
-            return;
-          }
-          launchFromAnswerAndroidDeferRef.current.delete(callUuid);
-          if (!launchFromAnswerStaleLoggedRef.current.has(callUuid)) {
-            launchFromAnswerStaleLoggedRef.current.add(callUuid);
-            logger.warn(
-              "Skipping stale Android launch-from-answer (no live session after deferral; often Metro reload after remote hangup)",
-              { callUuid }
-            );
-          }
-          return;
-        }
+      if (Platform.OS !== "android") {
         if (!launchFromAnswerStaleLoggedRef.current.has(callUuid)) {
           launchFromAnswerStaleLoggedRef.current.add(callUuid);
           logger.warn(
@@ -2188,17 +2329,40 @@ export const SoftphoneProvider: React.FC<{ children: React.ReactNode }> = ({
         return;
       }
 
-      handledLaunchFromAnswerRef.current.add(callUuid);
-      const caller = callerName ?? liveInfo?.remoteDisplayName ?? "Unknown Caller";
-      const number =
-        callerNumber ??
-        liveInfo?.remoteUri?.match(/^sip:(.+)@/)?.[1] ??
-        "Unknown";
-      promoteAnsweredCallToUi(callUuid, caller, number, liveInfo);
-      logger.debug("Launch-from-answer: navigated to InCallScreen", {
+      // Android: native already answered. Show the call screen now, resolve the session behind it.
+      openOptimisticInCallForLaunchFromAnswer(
         callUuid,
-        platform: Platform.OS
-      });
+        callerName || "Unknown Caller",
+        callerNumber || "Unknown"
+      );
+
+      const inFlight = launchFromAnswerResolveRef.current.get(callUuid);
+      const startedAt = inFlight?.startedAt ?? Date.now();
+      if (Date.now() - startedAt >= LAUNCH_FROM_ANSWER_RESOLVE_TIMEOUT_MS) {
+        stopLaunchFromAnswerResolve(callUuid);
+        if (!launchFromAnswerStaleLoggedRef.current.has(callUuid)) {
+          launchFromAnswerStaleLoggedRef.current.add(callUuid);
+          logger.warn(
+            "Launch-from-answer: no live SIP session within timeout — closing optimistic InCall",
+            { callUuid, timeoutMs: LAUNCH_FROM_ANSWER_RESOLVE_TIMEOUT_MS }
+          );
+        }
+        abandonLaunchFromAnswerPlaceholder(callUuid);
+        consumeNativeLaunchFromAnswer(callUuid);
+        clearBootLaunchFromAnswer();
+        return;
+      }
+
+      if (inFlight) clearTimeout(inFlight.timer);
+      const timer = setTimeout(() => {
+        processLaunchFromAnswer(
+          launchFromAnswer,
+          callUuid,
+          callerName,
+          callerNumber
+        );
+      }, LAUNCH_FROM_ANSWER_POLL_MS);
+      launchFromAnswerResolveRef.current.set(callUuid, { timer, startedAt });
     },
     [
       addCall,
@@ -2207,9 +2371,45 @@ export const SoftphoneProvider: React.FC<{ children: React.ReactNode }> = ({
       navigateToInCallScreen,
       getAndroidHeadlessEntry,
       getLiveCallInfoForUuid,
-      promoteAnsweredCallToUi
+      promoteAnsweredCallToUi,
+      stopLaunchFromAnswerResolve,
+      consumeNativeLaunchFromAnswer,
+      openOptimisticInCallForLaunchFromAnswer,
+      abandonLaunchFromAnswerPlaceholder
     ]
   );
+
+  // Never leave a resolve loop running past unmount.
+  useEffect(() => {
+    const timers = launchFromAnswerResolveRef.current;
+    return () => {
+      timers.forEach((entry) => clearTimeout(entry.timer));
+      timers.clear();
+    };
+  }, []);
+
+  /**
+   * Boot with a kill-state answered call: the placeholder is already in state and InCallScreen is
+   * already the initial route, so all that's left is to flag the call as active and start resolving
+   * the real SIP session behind it.
+   */
+  useEffect(() => {
+    if (!bootLaunchFromAnswer) return;
+    setCallActive(true);
+    androidCallFlowLog(
+      "launchFromAnswer",
+      "boot: InCallScreen is the initial route, resolving SIP session",
+      { callUuid: bootLaunchFromAnswer.callUuid }
+    );
+    processLaunchFromAnswer(
+      true,
+      bootLaunchFromAnswer.callUuid,
+      bootLaunchFromAnswer.callerName,
+      bootLaunchFromAnswer.callerNumber
+    );
+    // Boot value is read once; deps intentionally omit it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (!state.isRegistered) {
