@@ -196,6 +196,11 @@ export function InCallScreen({
     !!outboundDestination &&
     (activeCallId === "dialing" || callId === "dialing");
 
+  // Android kill-state answer: native already accepted the call; show a "Connecting…" shell (driven
+  // purely by route params, no fake call row) until the real SIP session appears in state.
+  const isPreSessionInboundShell =
+    !hadLiveCallRef.current && !activeCall && !!route.params?.answering;
+
   useEffect(() => {
     console.log("🟠 [InCallScreen] 📞 Component rendered:", {
       callId,
@@ -231,9 +236,10 @@ export function InCallScreen({
   // Navigate back only when no call remains (e.g. last leg ended). If activeCallId is
   // briefly cleared while another leg still exists, do not pop (second incoming decline).
   useEffect(() => {
-    // Avoid bouncing back to the previous screen while we intentionally show the
-    // "Dialing..." shell before the SIP session exists.
-    if (isPreSessionOutboundShell || hasOngoingCall) return;
+    // Avoid bouncing back to the previous screen while we intentionally show a pre-session shell
+    // (outbound "Dialing..." or inbound kill-state-answer "Connecting…") before the SIP session exists.
+    if (isPreSessionOutboundShell || isPreSessionInboundShell || hasOngoingCall)
+      return;
     if (isFocused && !activeCallId && ongoingCallCount === 0) {
       const timer = setTimeout(() => {
         // Show banner immediately when leaving call UI.
@@ -253,6 +259,7 @@ export function InCallScreen({
     hasOngoingCall,
     isFocused,
     isPreSessionOutboundShell,
+    isPreSessionInboundShell,
     navigation,
     ongoingCallCount,
     setInCallUiVisible
@@ -906,7 +913,10 @@ export function InCallScreen({
       );
     }
 
-    const isConnecting = !!activeCallId;
+    const isConnecting = !!activeCallId || isPreSessionInboundShell;
+    const inboundShellName =
+      (route.params?.displayName || getPhoneNumber(route.params?.phoneNumber) || "")
+        .trim();
     return (
       <View style={[styles.container,]}>
         <View style={styles.content}>
@@ -914,6 +924,19 @@ export function InCallScreen({
           <View style={styles.loadingContainer}>
             <LoadingSpinner size={40} />
             <WhiteSpace height={padding.lg} />
+            {isPreSessionInboundShell && !!inboundShellName && (
+              <>
+                <Text
+                  color="color-colors-text-text-primary"
+                  size={fontSize.xl}
+                  weight="semiBold"
+                  align="center"
+                >
+                  {inboundShellName}
+                </Text>
+                <WhiteSpace height={padding.sm} />
+              </>
+            )}
             <Text
               color="color-colors-text-text-secondary"
               size={fontSize.lg}

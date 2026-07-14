@@ -54,6 +54,8 @@ export type AuthParams = {
     avatarPath?: string | null;
     /** Legacy/compat: some call sites pass this instead of `destination`. */
     phoneNumber?: string;
+    /** Android kill-state answer: show an inbound "Connecting…" shell until the real SIP session comes up. */
+    answering?: boolean;
   };
   NewMessage: ChatParams | undefined;
   Meetings: {
@@ -136,7 +138,16 @@ export const AuthenticatedStackNavigator = () => {
       <AuthNavigator.Screen
         name="InCallScreen"
         component={InCallScreenWithErrorBoundary}
-        initialParams={bootCall ? { callId: bootCall.callUuid } : undefined}
+        initialParams={
+          bootCall
+            ? {
+                callId: bootCall.callUuid,
+                answering: true,
+                displayName: bootCall.callerName,
+                phoneNumber: bootCall.callerNumber
+              }
+            : undefined
+        }
         options={{
           headerShown: false,
           animation: "none"
