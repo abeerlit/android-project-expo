@@ -196,6 +196,7 @@ export const SendbirdChatContent: React.FC<SendbirdChatContentProps> = ({
   const [attachmentAssets, setAttachmentAssets] = useState<Asset[]>([]);
   const editorRef = useRef<any>(null);
   const suppressAutoFocusUntilRef = useRef(0);
+  const autoFocusedChannelRef = useRef<string | null>(null);
 
   React.useEffect(() => {
     componentMountTime.current = Date.now();
@@ -883,11 +884,20 @@ export const SendbirdChatContent: React.FC<SendbirdChatContentProps> = ({
   // Depends only on channelUrl so we don't refocus on drawer open, paste, etc.
   useEffect(() => {
     const url = channelUrl || currentChannel?.url;
-    const isAutoFocusSuppressed = Date.now() < suppressAutoFocusUntilRef.current;
-    if (!url || !listReady || isDrawerOpen || isAutoFocusSuppressed) return;
+    if (!url || !listReady) return;
+    if (autoFocusedChannelRef.current === url) return;
 
     const ed = editorRef.current;
     if (!ed) return;
+
+    const isAutoFocusSuppressed =
+      Date.now() < suppressAutoFocusUntilRef.current;
+    if (isDrawerOpen || isAutoFocusSuppressed) {
+      autoFocusedChannelRef.current = url;
+      return;
+    }
+
+    autoFocusedChannelRef.current = url;
 
     if (Platform.OS === "ios") {
       const timer = setTimeout(() => ed.focus(), 400);

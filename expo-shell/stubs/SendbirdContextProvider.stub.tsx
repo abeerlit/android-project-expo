@@ -31,6 +31,7 @@ const stubValue = {
   deleteUserMessage: async () => {},
   leaveChannelPermanently: async () => {},
   deleteChannel: async () => {},
+  updateChannelDetails: async () => {},
   reactionEvent: async () => {},
   fetchMoreMessages: async () => {},
   fetchNewMessages: async () => {},

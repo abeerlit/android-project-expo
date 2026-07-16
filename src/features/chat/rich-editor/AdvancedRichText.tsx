@@ -135,6 +135,11 @@ export const AdvancedRichText: React.FC<AdvancedRichTextProps> = ({
         ]}
         onPress={() => {
           editor.focus();
+          if (Platform.OS === "ios") {
+            requestAnimationFrame(() => {
+              setTimeout(() => editor.focus(), 80);
+            });
+          }
         }}
       >
         <RichText editor={editor} scrollEnabled={Platform.OS === "android"} nestedScrollEnabled={Platform.OS === "android"} />

@@ -18,7 +18,7 @@ const ChannelsSection: React.FC<ChannelsSectionProps> = ({ channels, isLoading =
     return channels.reduce((sum, channel) => sum + (channel.unreadCount || 0), 0);
   }, [channels]);
 
-  const showSkeleton = isLoading;
+  const showSkeleton = isLoading && channels.length === 0;
 
   return (
     <Accordion

@@ -2526,6 +2526,40 @@ export function SendbirdContextProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const updateChannelDetails = async (
+    channel: GroupChannel,
+    params: { name: string; data: string }
+  ) => {
+    await channel.updateChannel(params);
+
+    setChannels((prevChannels) => {
+      const channelIndex = prevChannels.findIndex((c) => c.url === channel.url);
+      if (channelIndex === -1) {
+        return [channel, ...prevChannels];
+      }
+      const updatedChannels = [...prevChannels];
+      updatedChannels[channelIndex] = channel;
+      return updatedChannels;
+    });
+
+    setFilteredGroupChannels((prev) => {
+      const next = prev.map((c) =>
+        c.url === channel.url ? { ...c, name: params.name } : c
+      );
+      return next;
+    });
+
+    const serializedChannel = serializeChannel(channel);
+    if (serializedChannel?.url) {
+      dispatchSendbird(
+        sendbirdActions.updateChannel({
+          ...serializedChannel,
+          name: params.name
+        } as any)
+      );
+    }
+  };
+
   const reactionEvent = async (
     message: BaseMessage,
     reaction: string,
@@ -5176,7 +5210,9 @@ export function SendbirdContextProvider({ children }: { children: ReactNode }) {
               );
               return `${c.url}:${c.lastMessage?.createdAt || 0}:${
                 c.unreadMessageCount || 0
-              }:${reduxCh?.customUnreadCount || 0}`;
+              }:${reduxCh?.customUnreadCount || 0}:${c.name || ""}:${
+                reduxCh?.name || ""
+              }`;
             })
             .sort()
             .join("|");
@@ -5298,15 +5334,21 @@ export function SendbirdContextProvider({ children }: { children: ReactNode }) {
       });
 
       const reduxChannel = cachedChannelsMap.get(channel.url);
-      let channelName =
-        reduxChannel?.name && reduxChannel.name !== "Unnamed Channel"
-          ? reduxChannel.name
-          : channel.name;
-      if (!channelName && channel.members?.length > 0) {
+      let channelName: string;
+      if (channel.name && channel.name.trim()) {
+        channelName = channel.name;
+      } else if (
+        reduxChannel?.name &&
+        reduxChannel.name !== "Unnamed Channel"
+      ) {
+        channelName = reduxChannel.name;
+      } else if (channel.members?.length > 0) {
         channelName = channel.members
           .map((m) => m.nickname || m.userId)
           .filter(Boolean)
           .join(", ");
+      } else {
+        channelName = "Unnamed Channel";
       }
       channelName = channelName || "Unnamed Channel";
 
@@ -5760,6 +5802,7 @@ export function SendbirdContextProvider({ children }: { children: ReactNode }) {
         filteredDMChannels,
         leaveChannelPermanently,
         deleteChannel,
+        updateChannelDetails,
         activeThreadId,
         activeParentMessage,
         threadMessages,
@@ -5816,6 +5859,7 @@ export function SendbirdContextProvider({ children }: { children: ReactNode }) {
       filteredDMChannels,
       leaveChannelPermanently,
       deleteChannel,
+      updateChannelDetails,
       activeThreadId,
       activeParentMessage,
       threadMessages,

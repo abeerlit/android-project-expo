@@ -87,7 +87,7 @@ export const MessageOptionsDrawer: React.FC<MessageOptionsDrawerProps> = ({
       }
     };
 
-    openDrawer(<AddReactionDrawer onEmojiSelect={handleEmojiReaction} />), 0.9;
+    openDrawer(<AddReactionDrawer onEmojiSelect={handleEmojiReaction} />, 0.9);
   };
 
   const menuOptions = [

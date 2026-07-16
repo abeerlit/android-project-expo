@@ -4,7 +4,8 @@ import {
   View,
   TouchableOpacity,
   StyleSheet,
-  TouchableWithoutFeedback
+  TouchableWithoutFeedback,
+  Keyboard
 } from "react-native";
 import { useSelector } from "react-redux";
 import { useTheme } from "hooks/use-theme.ts";
@@ -44,12 +45,18 @@ export const MessageReactions: React.FC<MessageReactionsProps> = ({
     return null;
   }
 
+  const dismissComposerKeyboard = () => {
+    editor?.blur();
+    Keyboard.dismiss();
+  };
+
   const handleReactionLongPress = () => {
+    dismissComposerKeyboard();
     openDrawer(<ReactionsDrawer message={message} />, 0.7);
   };
 
   const handleAddReactionPress = () => {
-    editor?.blur();
+    dismissComposerKeyboard();
     const handleEmojiReaction = async (emoji: string) => {
       if (user?.id) {
         await reactionEvent(message, emoji, user.id.toString());
@@ -87,6 +94,7 @@ export const MessageReactions: React.FC<MessageReactionsProps> = ({
       <TouchableWithoutFeedback
         key={emoji}
         onPress={() => {
+          dismissComposerKeyboard();
           if (user?.id) {
             reactionEvent(message, emoji, user.id.toString());
           }
