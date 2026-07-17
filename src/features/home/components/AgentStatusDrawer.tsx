@@ -16,7 +16,7 @@ import { agentStatusDrawerStyles } from "../styles/component-styles.ts";
 
 // API Import
 import { getTenantSettings } from "shared/api/tenant/methods.ts";
-import { queueAgentDND } from "shared/api/queues/methods.ts";
+import { queueAgentDND, queueAgentLogin } from "shared/api/queues/methods.ts";
 import { Logger } from "shared/utils/Logger.ts";
 import { toast } from "@backpackapp-io/react-native-toast";
 
@@ -118,6 +118,13 @@ export const AgentStatusDrawer: React.FC<DrawerProps> = ({
     const nextDnd = !allQueuesDnd; // true = mute all, false = unmute all
     try {
       setQueueLoginBusy(true);
+      if (accessToken) {
+        try {
+          await queueAgentLogin(accessToken, peerName, 1);
+        } catch (loginError) {
+          logger.error("ensure-login before DND failed:", loginError);
+        }
+      }
       const results = await Promise.allSettled(
         queues.map((q) => queueAgentDND(peerName, q.queueId, nextDnd))
       );
