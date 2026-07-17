@@ -78,12 +78,17 @@ export const queueAgentDND = async (
   throw apiClient.response as unknown as APIError;
 };
 
-export const queueAgentLogin = async (peerName: string) => {
+export const queueAgentLogin = async (
+  accessToken: string,
+  peerName: string,
+  loggedIn: 1 | 0
+) => {
   const apiClient = new HttpClient();
   try {
+    headers.Authorization = `Bearer ${accessToken}`;
     await apiClient.post(
       `/v2/queues/agent-login`,
-      { peerName, loggedIn: 1 },
+      { peerName, loggedIn },
       headers
     );
 

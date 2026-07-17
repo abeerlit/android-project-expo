@@ -17,6 +17,8 @@ import { agentStatusDrawerStyles } from "../styles/component-styles.ts";
 // API Import
 import { getTenantSettings } from "shared/api/tenant/methods.ts";
 import { Logger } from "shared/utils/Logger.ts";
+import { queueAgentLogin } from "shared/api/queues/methods.ts";
+import { toast } from "@backpackapp-io/react-native-toast";
 
 interface DrawerProps {
   handleStatusChange?: (
@@ -24,12 +26,16 @@ interface DrawerProps {
     paused: 1 | 0,
     pauseReason: string
   ) => Promise<void>;
+  loggedIn?: boolean; // true if agent is logged into any queue
+  refetch?: () => Promise<void>;
 }
 
 const logger = new Logger("AgentStatusDrawer");
 
 export const AgentStatusDrawer: React.FC<DrawerProps> = ({
-  handleStatusChange = () => Promise.resolve()
+  handleStatusChange = () => Promise.resolve(),
+  loggedIn = false,
+  refetch = () => Promise.resolve()
 }) => {
   // Hooks
   const theme = useTheme();
@@ -40,6 +46,7 @@ export const AgentStatusDrawer: React.FC<DrawerProps> = ({
   // State
   const [pauseReasons, setPauseReasons] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [queueLoginBusy, setQueueLoginBusy] = useState(false);
 
   // Fetch tenant settings on mount
   useEffect(() => {
@@ -87,6 +94,34 @@ export const AgentStatusDrawer: React.FC<DrawerProps> = ({
     } catch (error) {
       logger.error("Failed to change agent status:", error);
     } finally {
+      closeDrawer();
+    }
+  };
+
+  // Log agent in/out of all their allowed queues at once.
+  const handleQueueLoginToggle = async (): Promise<void> => {
+    if (!user?.peerName || !accessToken) {
+      logger.error("Cannot toggle queue login: missing peerName or token");
+      return;
+    }
+    if (queueLoginBusy) {
+      return;
+    }
+    const nextLoggedIn = loggedIn ? 0 : 1;
+    try {
+      setQueueLoginBusy(true);
+      await queueAgentLogin(accessToken, user.peerName, nextLoggedIn);
+      await refetch();
+      toast.success(
+        nextLoggedIn === 0
+          ? "Logged out of all queues."
+          : "Logged in to all queues."
+      );
+    } catch (error) {
+      logger.error("Failed to toggle queue login:", error);
+      toast.error("Couldn't update queue login");
+    } finally {
+      setQueueLoginBusy(false);
       closeDrawer();
     }
   };
@@ -186,6 +221,22 @@ export const AgentStatusDrawer: React.FC<DrawerProps> = ({
           </View>
         ))
       )}
+
+      <WhiteSpace style={[agentStatusDrawerStyles.divider, { borderColor: theme.colors["color-colors-border-border-secondary"]}]} />
+
+      <TouchableOpacity
+        disabled={queueLoginBusy}
+        onPress={handleQueueLoginToggle}
+      >
+        <Text
+          size={fontSize.sm}
+          color="secondary"
+          weight="semiBold"
+          style={agentStatusDrawerStyles.optionText}
+        >
+          {loggedIn ? "Log out of all queues" : "Log in to all queues"}
+        </Text>
+      </TouchableOpacity>
     </View>
   );
 };

@@ -13,6 +13,7 @@ interface AgentQueue {
 
 interface AgentQueues {
   paused: boolean | number;
+  loggedIn?: boolean | number;
   queues: AgentQueue[];
 }
 
@@ -40,6 +41,7 @@ const CallCenterSection: React.FC<CallCenterSectionProps> = ({
         status={
           typeof data?.paused === "boolean" ? (data.paused ? 1 : 0) : undefined
         }
+        loggedIn={!!data?.loggedIn}
         refetch={handleRefetch}
       />
     }
