@@ -13,7 +13,8 @@ import {
   Platform,
   Keyboard,
   KeyboardAvoidingView,
-  InteractionManager
+  InteractionManager,
+  Dimensions
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useSelector } from "react-redux";
@@ -194,6 +195,8 @@ export const SendbirdChatContent: React.FC<SendbirdChatContentProps> = ({
   const componentMountTime = useRef(Date.now());
   const [listReady, setListReady] = useState(false);
   const [attachmentAssets, setAttachmentAssets] = useState<Asset[]>([]);
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const editorRef = useRef<any>(null);
   const suppressAutoFocusUntilRef = useRef(0);
   const autoFocusedChannelRef = useRef<string | null>(null);
@@ -204,6 +207,46 @@ export const SendbirdChatContent: React.FC<SendbirdChatContentProps> = ({
       channelUrl,
       timestamp: componentMountTime.current
     });
+  }, []);
+
+  // Track keyboard visibility and actual keyboard height.
+  useEffect(() => {
+    const keyboardDidShowListener = Keyboard.addListener(
+      Platform.OS === "android" ? "keyboardDidShow" : "keyboardWillShow",
+      (event) => {
+        const { height: kbHeight, screenY } = event.endCoordinates;
+        const { height: windowHeight } = Dimensions.get("window");
+        const { height: screenHeight } = Dimensions.get("screen");
+        
+        // Calculate available space above keyboard.
+        const availableSpace = screenY;
+        
+        logger.debug("⌨️ [Keyboard] Keyboard opened:", {
+          keyboardHeight: kbHeight,
+          screenY: screenY,
+          windowHeight: windowHeight,
+          screenHeight: screenHeight,
+          availableSpace: availableSpace,
+          keyboardPercentage: ((kbHeight / screenHeight) * 100).toFixed(2) + "%"
+        });
+        
+        setKeyboardHeight(kbHeight);
+        setIsKeyboardVisible(true);
+      }
+    );
+    const keyboardDidHideListener = Keyboard.addListener(
+      Platform.OS === "android" ? "keyboardDidHide" : "keyboardWillHide",
+      () => {
+        logger.debug("⌨️ [Keyboard] Keyboard closed");
+        setKeyboardHeight(0);
+        setIsKeyboardVisible(false);
+      }
+    );
+
+    return () => {
+      keyboardDidShowListener.remove();
+      keyboardDidHideListener.remove();
+    };
   }, []);
 
   // Show cached messages as soon as enterChannel applies them; short delay when empty (reply flash).
@@ -1094,6 +1137,9 @@ export const SendbirdChatContent: React.FC<SendbirdChatContentProps> = ({
       <View
         style={[
           styles.editorWrapper,
+          Platform.OS === "android" && isKeyboardVisible && {
+            paddingBottom: activeCallId ? 60 : 20
+          },
           isEditing && {
             backgroundColor:
               theme.colors["colors-background-bg-warning-secondary"]
