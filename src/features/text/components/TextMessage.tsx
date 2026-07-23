@@ -28,6 +28,7 @@ import {
 import { TextMessage as TextMessageType } from "shared/api/messaging/types.ts";
 import { borderRadius, fontSize, padding } from "core/theme/theme.ts";
 import { formatPreciseTime, getDateText } from "shared/utils/utils.ts";
+import { findContactByPhoneNumber } from "features/calling/utils/contact-lookup.ts";
 import { State } from "store/types.ts";
 
 interface TextMessageProps {
@@ -606,9 +607,8 @@ const TextMessageComponent: React.FC<TextMessageProps> = ({
   prevMessage
 }) => {
   const theme = useTheme();
-  const { directory } = useSelector(
-    ({ directoryReducer }: State) => directoryReducer
-  );
+  const { directory, personalContacts, companyContacts, phoneContacts } =
+    useSelector(({ directoryReducer }: State) => directoryReducer);
   const { user } = useSelector(({ userReducer }: State) => userReducer);
 
   const isCurrentUser = message.direction === "outbound";
@@ -627,14 +627,22 @@ const TextMessageComponent: React.FC<TextMessageProps> = ({
       };
     }
 
-    const contact = directory.find((contact) => {
-      const contactPhone = contact.number?.replace(/\D/g, "");
-      const messagePhone = senderPhone.replace(/\D/g, "");
-      return contactPhone === messagePhone;
-    });
-
-    return contact || null;
-  }, [directory, senderPhone, isCurrentUser, user]);
+    return findContactByPhoneNumber(
+      senderPhone,
+      personalContacts || [],
+      companyContacts || [],
+      directory || [],
+      phoneContacts || []
+    );
+  }, [
+    directory,
+    personalContacts,
+    companyContacts,
+    phoneContacts,
+    senderPhone,
+    isCurrentUser,
+    user
+  ]);
 
   const timeDifference =
     new Date(message?.timestamp || 0).getTime() -

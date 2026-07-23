@@ -4949,134 +4949,86 @@ export function SendbirdContextProvider({ children }: { children: ReactNode }) {
       return; // Wait for initial fetch on first launch
     }
 
-    // Only run at startup (or when user prefs change) - skip when triggered by channel updates (e.g. new message)
-    if (notificationPrefsAppliedRef.current) {
-      return;
-    }
-
     const directMessagesOnlyEnabled =
       user?.enableDirectMessageNotifications === 1;
     const allNewMessagesEnabled = user?.enableAllNewMessageNotifications === 1;
     const chatNotificationsEnabled = user?.enableChatNotifications === 1;
 
-    const groupChannels = channels.filter((channel) => {
+    const desiredOptionForChannel = (
+      channel: GroupChannel
+    ): PushTriggerOption => {
+      if (!chatNotificationsEnabled) {
+        return PushTriggerOption.OFF;
+      }
       const isDM =
         channel.customType === CustomChannelType.dmChannel(user.tenantId) ||
-        channel.customType === CustomChannelType.personalChannel(user.tenantId);
-      return !isDM;
-    });
-
-    if (!chatNotificationsEnabled) {
-      sendbirdInstance?.setPushTriggerOption(PushTriggerOption.ALL);
-    } else {
-      sendbirdInstance?.setPushTriggerOption(PushTriggerOption.OFF);
-    }
-
-    if (Platform.OS == "android") {
-      const test = async () => {
-        try {
-          await Promise.all(
-            channels.map((channel) => {
-              if (
-                !channel?.url ||
-                typeof channel.setMyPushTriggerOption !== "function"
-              )
-                return;
-              channel.setMyPushTriggerOption(PushTriggerOption.ALL);
-            })
-          );
-          logger.debug("✅ [NotificationPrefs] All channels unmuted", {
-            count: channels.length
-          });
-          notificationPrefsAppliedRef.current = true;
-        } catch (error) {
-          logger.error(
-            "❌ [NotificationPrefs] Error muting group channels:",
-            error
-          );
-        }
-      };
-      void test();
-      return;
-    }
-
-    const updateChannelMuteStatus = async () => {
-      if (groupChannels.length === 0) {
-        notificationPrefsAppliedRef.current = true;
-        return;
-      }
-
+        channel.customType ===
+          CustomChannelType.personalChannel(user.tenantId);
       if (directMessagesOnlyEnabled) {
-        try {
-          await Promise.all(
-            groupChannels.map((channel) => {
-              if (
-                !channel?.url ||
-                typeof channel.setMyPushTriggerOption !== "function"
-              )
-                return;
-
-              if (channel?.name === "Thank") {
-                try {
-                  channel.setMyPushTriggerOption(PushTriggerOption.OFF);
-                  logger.debug("✅ [NotificationPrefs] Thank channel muted", {
-                    channelUrl: channel.url
-                  });
-                } catch (error) {
-                  logger.error(
-                    "❌ [NotificationPrefs] Error muting Thank channel:",
-                    error
-                  );
-                }
-              }
-              channel.setMyPushTriggerOption(PushTriggerOption.OFF);
-            })
-          );
-          logger.debug("✅ [NotificationPrefs] All group channels muted", {
-            count: groupChannels.length
-          });
-        } catch (error) {
-          logger.error(
-            "❌ [NotificationPrefs] Error muting group channels:",
-            error
-          );
-        }
-      } else if (allNewMessagesEnabled) {
-        logger.debug(
-          "🔊 [NotificationPrefs] AllNewMessages enabled - unmuting group channels",
-          {
-            count: groupChannels.length
-          }
-        );
-        try {
-          await Promise.all(
-            groupChannels.map((channel) => {
-              if (
-                !channel?.url ||
-                typeof channel.setMyPushTriggerOption !== "function"
-              )
-                return;
-              channel.setMyPushTriggerOption(PushTriggerOption.ALL);
-            })
-          );
-          logger.debug("✅ [NotificationPrefs] All group channels unmuted", {
-            count: groupChannels.length
-          });
-        } catch (error) {
-          logger.error(
-            "❌ [NotificationPrefs] Error unmuting group channels:",
-            error
-          );
-        }
+        return isDM ? PushTriggerOption.ALL : PushTriggerOption.OFF;
       }
-      notificationPrefsAppliedRef.current = true;
+      if (allNewMessagesEnabled) {
+        return PushTriggerOption.ALL;
+      }
+      return PushTriggerOption.OFF;
     };
 
-    void updateChannelMuteStatus();
+    try {
+      void sendbirdInstance?.setPushTriggerOption(PushTriggerOption.OFF);
+    } catch (error) {
+      logger.error(
+        "❌ [NotificationPrefs] Error setting global push trigger:",
+        error
+      );
+    }
+
+    const applyChannelPushTriggers = async () => {
+      try {
+        await Promise.all(
+          channels.map(async (channel) => {
+            if (
+              !channel?.url ||
+              typeof channel.setMyPushTriggerOption !== "function"
+            ) {
+              return;
+            }
+            const desired = desiredOptionForChannel(channel);
+            if (channel.myPushTriggerOption === desired) {
+              return;
+            }
+            try {
+              await channel.setMyPushTriggerOption(desired);
+            } catch (error) {
+              logger.error(
+                "❌ [NotificationPrefs] Error applying push trigger to channel:",
+                { channelUrl: channel.url, error }
+              );
+            }
+          })
+        );
+        logger.debug("✅ [NotificationPrefs] Applied channel push triggers", {
+          count: channels.length,
+          chatNotificationsEnabled,
+          allNewMessagesEnabled,
+          directMessagesOnlyEnabled
+        });
+        notificationPrefsAppliedRef.current = true;
+      } catch (error) {
+        logger.error(
+          "❌ [NotificationPrefs] Error applying channel push triggers:",
+          error
+        );
+      }
+    };
+
+    void applyChannelPushTriggers();
   }, [
     user?.enableDirectMessageNotifications,
     user?.enableAllNewMessageNotifications,
     user?.enableChatNotifications,
+    sendbirdInstance,
+    user?.tenantId,
+    channels?.length
   ]);
 
   const currentChannelUrl = currentChannel?.url;

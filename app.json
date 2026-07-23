@@ -3,7 +3,7 @@
     "owner": "voxo",
     "name": "VOXO Connect",
     "slug": "voxo-connect-ios-expo",
-    "version": "2.0.58",
+    "version": "2.0.59",
     "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",

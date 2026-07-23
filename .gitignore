@@ -6,3 +6,4 @@ ios/
 .env
 *.jks
 *.keystore
+play-console-key.json
