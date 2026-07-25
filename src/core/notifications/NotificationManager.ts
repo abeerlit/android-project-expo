@@ -86,6 +86,7 @@ class NotificationManager {
   private voipToken: string | null = null;
   private androidChannelId: string = "voxo-notifications";
   private isDestroyed: boolean = false;
+  private pushListenersAttached: boolean = false;
 
   async initialize(
     callbacks: NotificationManagerCallbacks,
@@ -93,12 +94,21 @@ class NotificationManager {
   ) {
     this.isDestroyed = false;
     this.callbacks = callbacks;
+    this.ensurePushListeners();
+
     const deferPermissionRequest =
       options?.deferPermissionRequest === true && Platform.OS === "android";
     if (!deferPermissionRequest) {
       await this.requestPermissions();
     }
-    await this.getPushToken();
+    try {
+      await this.getPushToken();
+    } catch (e) {
+      console.warn(
+        "[NotificationManager] getPushToken() failed on init; onTokenRefresh will retry",
+        e
+      );
+    }
 
     // Set up Notifee event listeners (same for both platforms)
     this.setupNotifeeListeners();
@@ -113,8 +123,7 @@ class NotificationManager {
       this.setupAndroidNotificationHandlers();
     }
 
-    this.listenForTokenRefresh();
-    this.listenForNotifications();
+    this.ensurePushListeners();
   }
 
   /**
@@ -1714,6 +1723,28 @@ class NotificationManager {
         }
       }
     );
+  }
+
+  private ensurePushListeners(): void {
+    if (this.pushListenersAttached) {
+      return;
+    }
+    this.listenForTokenRefresh();
+    this.listenForNotifications();
+    this.pushListenersAttached = true;
+  }
+
+  async reRegisterCurrentTokens(): Promise<void> {
+    this.isDestroyed = false;
+    this.ensurePushListeners();
+    try {
+      await this.getPushToken();
+    } catch (e) {
+      console.warn(
+        "[NotificationManager] reRegisterCurrentTokens getPushToken failed",
+        e
+      );
+    }
   }
 
   private listenForTokenRefresh() {

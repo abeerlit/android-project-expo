@@ -1,6 +1,6 @@
 // Our worker Saga that log the user in
 import { Platform } from "react-native";
-import { call, put, select, takeEvery } from "redux-saga/effects";
+import { call, delay, put, select, takeEvery } from "redux-saga/effects";
 import * as userActions from "store/users/actions.ts";
 import * as globalActions from "store/global-actions.ts";
 import * as directoryActions from "store/directory/actions.ts";
@@ -30,37 +30,87 @@ interface StorePushAction {
   };
 }
 
+const MAX_PUSH_TOKEN_ATTEMPTS = 5;
+const PUSH_TOKEN_RETRY_BASE_MS = 2000;
+
+let lastPushPayload: { pushToken: string; tokenType: string } | null = null;
+
 function* storePushId(action: StorePushAction): Generator<any, void, any> {
-  try {
+  const pushToken = action.payload?.pushToken;
+  const tokenType = action.payload?.tokenType;
+
+  if (!pushToken || pushToken.length === 0) {
+    logger.warn("storePushId: empty push token, skipping");
+    return;
+  }
+
+  lastPushPayload = { pushToken, tokenType };
+
+  logger.debug(
+    "🔑 [User Sagas] SMS/Backend: storing push token for SMS notifications",
+    {
+      tokenType,
+      token: pushToken,
+      tokenLength: pushToken.length
+    }
+  );
+  if (Platform.OS === "android" && tokenType === "android_fcm") {
+    logAndroidVoipPushToken("backend_pushtoken_saga", pushToken, {
+      tokenType,
+      api: "POST /v2/push/pushtoken"
+    });
+  }
+
+  for (let attempt = 1; attempt <= MAX_PUSH_TOKEN_ATTEMPTS; attempt++) {
     const authReducer = yield select((state: State) => state.authReducer);
-    if (
-      authReducer.isLoggedIn &&
-      action.payload.pushToken &&
-      action.payload.pushToken.length > 0
-    ) {
-      logger.debug("🔑 [User Sagas] SMS/Backend: storing push token for SMS notifications", {
-        tokenType: action.payload.tokenType,
-        token: action.payload.pushToken,
-        tokenLength: action.payload.pushToken.length
-      });
-      if (
-        Platform.OS === "android" &&
-        action.payload.tokenType === "android_fcm"
-      ) {
-        logAndroidVoipPushToken("backend_pushtoken_saga", action.payload.pushToken, {
-          tokenType: action.payload.tokenType,
-          api: "POST /v2/push/pushtoken"
-        });
-      }
+    if (!authReducer.isLoggedIn || !authReducer.accessToken) {
+      logger.warn(
+        `storePushId: not logged in, aborting registration (attempt ${attempt})`
+      );
+      return;
+    }
+
+    try {
       yield call(setPushToken, {
-        tokenType: action.payload.tokenType,
-        token: action.payload.pushToken,
+        tokenType,
+        token: pushToken,
         accessToken: authReducer.accessToken
       });
-      logger.debug("🔑 [User Sagas] SMS/Backend: push token sent to backend successfully");
+      logger.debug(
+        `🔑 [User Sagas] SMS/Backend: push token sent to backend successfully (${tokenType}, attempt ${attempt})`
+      );
+      return;
+    } catch (e) {
+      if (attempt < MAX_PUSH_TOKEN_ATTEMPTS) {
+        logger.warn(
+          `storePushId: attempt ${attempt}/${MAX_PUSH_TOKEN_ATTEMPTS} failed, retrying`,
+          e
+        );
+        yield delay(PUSH_TOKEN_RETRY_BASE_MS * attempt);
+      } else {
+        logger.error(
+          `storePushId: giving up after ${MAX_PUSH_TOKEN_ATTEMPTS} attempts — ` +
+            `${tokenType} token NOT registered, device may miss incoming calls`,
+          e
+        );
+      }
     }
-  } catch (_e) {
-    // logger.debug("Error storing push id", e);
+  }
+}
+
+function* refreshPushId(): Generator<any, void, any> {
+  try {
+    const notificationManager =
+      require("core/notifications/NotificationManager.ts").default;
+    yield call([notificationManager, notificationManager.reRegisterCurrentTokens]);
+    logger.debug("refreshPushId: triggered active token re-registration");
+  } catch (e) {
+    logger.warn("refreshPushId: reRegisterCurrentTokens failed", e);
+  }
+
+  if (lastPushPayload) {
+    logger.debug("refreshPushId: re-syncing cached push token with backend");
+    yield put({ type: userActions.STORE_PUSH_ID, payload: lastPushPayload });
   }
 }
 
@@ -185,6 +235,7 @@ function* syncUserProfileFromDirectory(action: {
 export const userSagas = [
   takeEvery(userActions.DELETE_PUSH_ID, deletePushId),
   takeEvery(userActions.STORE_PUSH_ID, storePushId),
+  takeEvery(userActions.REFRESH_PUSH_ID, refreshPushId),
   takeEvery(userActions.REFRESH_USER_PROFILE, refreshUserProfile),
   takeEvery(globalActions.APP_FOREGROUND, refreshUserProfile),
   takeEvery(

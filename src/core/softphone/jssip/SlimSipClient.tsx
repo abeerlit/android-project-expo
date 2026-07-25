@@ -150,18 +150,32 @@ export class SlimSipClient extends events.EventEmitter {
     logger.debug("Sipp User Agent", this.ua);
     this.commonRegistrationHeaders = ["Authorization: Bearer " + this.token];
     this.connectPromise = new Promise<void>((resolve, reject) => {
+      const connectStartedAt = Date.now();
       const timeoutHandle = setTimeout(() => {
+        console.error(
+          `🔵 [SIP] ${new Date().toISOString()} ❌ WEBSOCKET CONNECT TIMEOUT (${
+            this.WSS_CONNECT_TIMEOUT
+          }ms) to ${wsUrl} — REGISTER never sent`
+        );
         reject(new WebSocketConnectTimeoutError());
       }, this.WSS_CONNECT_TIMEOUT);
 
       this.ua.once("connected", () => {
-        logger.debug("Connection Promise Received");
+        console.warn(
+          `🔵 [SIP] ${new Date().toISOString()} ✅ WebSocket connected in ${
+            Date.now() - connectStartedAt
+          }ms`
+        );
         clearTimeout(timeoutHandle);
         resolve();
       });
 
       this.ua.once("disconnected", () => {
-        logger.debug("Connection Promise Not Received");
+        console.error(
+          `🔵 [SIP] ${new Date().toISOString()} ❌ WebSocket DISCONNECTED during connect (after ${
+            Date.now() - connectStartedAt
+          }ms) to ${wsUrl} — REGISTER never sent`
+        );
         clearTimeout(timeoutHandle);
         reject(new WebSocketConnectionError());
       });
@@ -286,7 +300,9 @@ export class SlimSipClient extends events.EventEmitter {
     callUuid: string,
     callerIp: string
   ): Promise<SipSession> {
+    const startedAt = Date.now();
     const ts = () => new Date().toISOString();
+    const el = () => `+${Date.now() - startedAt}ms`;
     console.warn(
       `🔵 [SIP] ${ts()} establishInboundSession START | uuid=${callUuid} ip=${callerIp} AppState=${
         AppState.currentState
@@ -333,7 +349,7 @@ export class SlimSipClient extends events.EventEmitter {
 
       ua.once("newRTCSession", (establishedSession: any) => {
         console.warn(
-          `🔵 [SIP] ${ts()} ✅ INVITE RECEIVED (newRTCSession) for ${callUuid} — SIP is active, waiting for user answer`
+          `🔵 [SIP] ${ts()} ✅ INVITE RECEIVED (newRTCSession) ${el()} for ${callUuid} — SIP is active, waiting for user answer`
         );
         const rtcSession = establishedSession.session;
         logger.debug("newRTCSession", rtcSession);
@@ -409,7 +425,7 @@ export class SlimSipClient extends events.EventEmitter {
 
       ua.once("registered", () => {
         console.warn(
-          `🔵 [SIP] ${ts()} ✅ REGISTERED for ${callUuid} - waiting for INVITE (8s timeout)`
+          `🔵 [SIP] ${ts()} ✅ REGISTERED ${el()} for ${callUuid} - waiting for INVITE (8s timeout)`
         );
 
         //When registration has succeeded, we remove the additional parameters, as any further
@@ -419,7 +435,7 @@ export class SlimSipClient extends events.EventEmitter {
 
         timeoutHandle = setTimeout(() => {
           console.error(
-            `🔵 [SIP] ${ts()} ❌ INVITE TIMEOUT (8s) for ${callUuid} - no INVITE after REGISTER`
+            `🔵 [SIP] ${ts()} ❌ INVITE TIMEOUT (8s) ${el()} for ${callUuid} - REGISTERED but no INVITE arrived — call will NOT ring (slow server/network or answered elsewhere)`
           );
           reject({
             error: "RECEIVE_INVITE_TIMEOUT",
@@ -447,10 +463,19 @@ export class SlimSipClient extends events.EventEmitter {
         this.settings.wsUrl
       } (callUuid=${callUuid})...`
     );
-    await this.connect();
+    try {
+      await this.connect();
+    } catch (err: any) {
+      console.error(
+        `🔵 [SIP] ${ts()} ❌ WAKE-UP FAILED at WebSocket connect (${el()}) | callUuid=${callUuid} | ${
+          err?.message || err
+        } — call will NOT ring`
+      );
+      throw err;
+    }
 
     console.warn(
-      `🔵 [SIP] ${ts()} ✅ WebSocket connected | callUuid=${callUuid} | SIP active, waiting for INVITE or CANCEL...`
+      `🔵 [SIP] ${ts()} ✅ WebSocket connected (${el()}) | callUuid=${callUuid} | SIP active, waiting for INVITE or CANCEL...`
     );
     return rtcSessionPromise;
   }
