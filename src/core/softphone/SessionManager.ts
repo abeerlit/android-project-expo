@@ -1998,8 +1998,19 @@ export class SessionManager {
    */
   private async getLocalStream(): Promise<MediaStream> {
     try {
+      const audioConstraints =
+        this.config.useAudio !== false
+          ? {
+              echoCancellation: true,
+              googEchoCancellation: true,
+              noiseSuppression: true,
+              googNoiseSuppression: true,
+              autoGainControl: false,
+              googAutoGainControl: false
+            }
+          : false;
       const constraints = {
-        audio: this.config.useAudio !== false,
+        audio: audioConstraints,
         video: this.config.useVideo === true
       };
 
