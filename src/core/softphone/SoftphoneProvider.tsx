@@ -811,11 +811,11 @@ export const SoftphoneProvider: React.FC<{ children: React.ReactNode }> = ({
       if (cup) {
         cup.dispose().catch(() => {});
       }
-      try {
-        VoipBridge.getInstance().dispose();
-      } catch {
-        /* ignore */
-      }
+      // NOTE: Do NOT dispose the VoipBridge singleton on logout. It is mounted above
+      // the auth boundary and its "incomingVoipCall" listener is attached once (setupVoipBridge,
+      // deps do not include user). Disposing here removes the listener and it is never
+      // re-attached on the next login → the new user gets no foreground invite until a
+      // full kill+reopen. android-project (reference) never disposes it here.
       PendingCallManager.clearAllPendingCalls().catch(() => {});
       setState({
         isInitialized: false,
@@ -874,29 +874,11 @@ export const SoftphoneProvider: React.FC<{ children: React.ReactNode }> = ({
           callInfo
         });
 
-        const voipPayload = (callInfo.voipPayload ?? {}) as Record<
-          string,
-          unknown
-        >;
-        if (
-          Platform.OS === "android" &&
-          shouldSkipStaleVoipPush(
-            voipPayload,
-            callUuid,
-            "SoftphoneProvider.incomingVoipCall"
-          )
-        ) {
-          dismissStaleAndroidVoipCall(callUuid, {
-            callUuid,
-            callerName: callInfo.remoteDisplayName,
-            callerNumber:
-              (voipPayload.payload_callerNumber as string) ||
-              (voipPayload.callerNumber as string) ||
-              "Unknown Number",
-            payload: voipPayload
-          });
-          return;
-        }
+        // NOTE: No stale-VoIP-push gate here. The foreground FCM push IS the live invite;
+        // gating it on age (clock skew / FCM latency) intermittently drops real calls
+        // (esp. two devices on one account → Android drops). The stale check belongs only
+        // to the kill-state / pending path (below) and the headless/background handlers,
+        // matching android-project (reference).
 
         // Ensure NativeIntegration is ready before any inbound path can forward to native.
         const reduxState = store.getState() as any;

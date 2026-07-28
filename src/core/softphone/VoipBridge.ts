@@ -2,10 +2,6 @@ import { NativeModules, Platform } from "react-native";
 import { EventEmitter } from "events";
 import { setCallActive } from "../callState";
 import { VoipCallData } from "../notifications/NotificationManager";
-import {
-  dismissStaleAndroidVoipCall,
-  shouldSkipStaleVoipPush
-} from "../notifications/voipPushStaleCheck.ts";
 import { CallInfo, CallState, CallDirection } from "./types";
 import { Logger } from "shared/utils/Logger.ts";
 import BackgroundTaskManager from "../background/BackgroundTaskManager.ts";
@@ -79,18 +75,10 @@ export class VoipBridge extends EventEmitter {
       timestamp: new Date().toISOString()
     });
 
-    const voipPayload = (callData.payload ?? {}) as Record<string, unknown>;
-    if (
-      Platform.OS === "android" &&
-      shouldSkipStaleVoipPush(
-        voipPayload,
-        callData.callUuid,
-        "VoipBridge.handleVoipCall"
-      )
-    ) {
-      dismissStaleAndroidVoipCall(callData.callUuid, callData);
-      return;
-    }
+    // NOTE: No stale-VoIP-push gate here. handleVoipCall runs on every inbound path,
+    // including the live foreground push; gating on age intermittently drops real calls.
+    // Kill-state/background entry points do their own stale filtering upstream,
+    // matching android-project (reference).
 
     if (!this._initialized) {
       if (Platform.OS === "android") {

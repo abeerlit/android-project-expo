@@ -20,6 +20,26 @@ import { logAndroidVoipPushToken } from "core/notifications/androidVoipPushToken
 
 const logger = new Logger("User Sagas: ");
 
+/**
+ * After the user changes their OWN avatar/banner on THIS device, the directory
+ * (/v2/directory/company) and /v2/users/me can briefly still return the OLD path
+ * (eventual consistency). Without protection the sync writers below overwrite the
+ * fresh value with the stale one → the picture "swaps back" to the previous one.
+ * During this short window we keep the locally-set value.
+ *
+ * Cross-device updates are NOT affected: outside the window (virtually always) sync
+ * overwrites normally, and once the server converges the values already match so
+ * there is nothing to change. Only avatarPath/coverPhoto are gated — dnd and other
+ * fields still sync immediately.
+ */
+const LOCAL_MEDIA_COOLDOWN_MS = 90000; // 90s
+
+function isWithinLocalMediaCooldown(setAt?: number): boolean {
+  return (
+    typeof setAt === "number" && Date.now() - setAt < LOCAL_MEDIA_COOLDOWN_MS
+  );
+}
+
 const getToken = (state: State) => state.authReducer.accessToken;
 
 interface StorePushAction {
@@ -144,6 +164,8 @@ function* refreshUserProfile(): Generator<any, void, any> {
       avatarPath?: string;
       coverPhoto?: string;
       dnd?: string;
+      avatarLocallySetAt?: number;
+      coverLocallySetAt?: number;
     } | null;
     const profile = (yield call(
       getCurrentUserProfile,
@@ -169,10 +191,18 @@ function* refreshUserProfile(): Generator<any, void, any> {
 
     const updates: Record<string, unknown> = {};
     if (profile) {
-      if (profile.avatarPath != null && profile.avatarPath !== user?.avatarPath) {
+      if (
+        profile.avatarPath != null &&
+        profile.avatarPath !== user?.avatarPath &&
+        !isWithinLocalMediaCooldown(user?.avatarLocallySetAt)
+      ) {
         updates.avatarPath = profile.avatarPath;
       }
-      if (profile.coverPhoto != null && profile.coverPhoto !== user?.coverPhoto) {
+      if (
+        profile.coverPhoto != null &&
+        profile.coverPhoto !== user?.coverPhoto &&
+        !isWithinLocalMediaCooldown(user?.coverLocallySetAt)
+      ) {
         updates.coverPhoto = profile.coverPhoto;
       }
     }
@@ -205,6 +235,8 @@ function* syncUserProfileFromDirectory(action: {
       extId?: number;
       avatarPath?: string;
       coverPhoto?: string;
+      avatarLocallySetAt?: number;
+      coverLocallySetAt?: number;
     } | null;
     if (!user?.id) return;
     const contacts = action?.payload;
@@ -214,10 +246,18 @@ function* syncUserProfileFromDirectory(action: {
     );
     if (!self) return;
     const updates: Record<string, unknown> = {};
-    if (self.avatarPath != null && self.avatarPath !== user.avatarPath) {
+    if (
+      self.avatarPath != null &&
+      self.avatarPath !== user.avatarPath &&
+      !isWithinLocalMediaCooldown(user.avatarLocallySetAt)
+    ) {
       updates.avatarPath = self.avatarPath;
     }
-    if (self.coverPhoto != null && self.coverPhoto !== user.coverPhoto) {
+    if (
+      self.coverPhoto != null &&
+      self.coverPhoto !== user.coverPhoto &&
+      !isWithinLocalMediaCooldown(user.coverLocallySetAt)
+    ) {
       updates.coverPhoto = self.coverPhoto;
     }
     if (Object.keys(updates).length > 0) {

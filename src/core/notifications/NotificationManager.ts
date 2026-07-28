@@ -27,10 +27,6 @@ import { handleAndroidSmsFcm } from "./androidSmsFcmDisplay.ts";
 import { resolveSmsSenderDisplayName } from "./resolveSmsSenderDisplayName.ts";
 import { getMessagesForConversation } from "../../shared/api/messaging/methods.ts";
 import PendingCallManager from "./PendingCallManager";
-import {
-  dismissStaleAndroidVoipCall,
-  shouldSkipStaleVoipPush
-} from "./voipPushStaleCheck.ts";
 import { logAndroidVoipPushToken } from "./androidVoipPushTokenLog.ts";
 
 export type NotificationToken = {
@@ -2296,17 +2292,10 @@ class NotificationManager {
           payload: remoteMessage.data
         };
 
-        if (
-          Platform.OS === "android" &&
-          shouldSkipStaleVoipPush(
-            remoteMessage.data as Record<string, unknown>,
-            callData.callUuid,
-            "displayNotification"
-          )
-        ) {
-          dismissStaleAndroidVoipCall(callData.callUuid, callData);
-          return;
-        }
+        // NOTE: No stale-VoIP-push gate on the foreground onMessage path. This push IS the
+        // live incoming call; gating on age (clock skew / FCM latency) intermittently drops
+        // real calls. Stale filtering stays in the kill-state/background handlers only,
+        // matching android-project (reference).
 
         const voipBridge = VoipBridge.getInstance();
         voipBridge.handleVoipCall(callData).catch((error) => {

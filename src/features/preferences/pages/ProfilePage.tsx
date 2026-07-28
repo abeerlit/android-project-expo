@@ -77,7 +77,10 @@ const ProfilePage: React.FC = () => {
       type: userActions.UPDATE_USER,
       payload: {
         avatarPath: res.avatarPath,
-        profileMediaVersion: Date.now()
+        profileMediaVersion: Date.now(),
+        // Mark as a local change so directory/profile sync does not revert it to a
+        // stale server value during propagation (see LOCAL_MEDIA_COOLDOWN_MS in user sagas).
+        avatarLocallySetAt: Date.now()
       } as any
     });
     if (user?.id) {
@@ -133,7 +136,10 @@ const ProfilePage: React.FC = () => {
       type: userActions.UPDATE_USER,
       payload: {
         coverPhoto: res.coverPhoto,
-        profileMediaVersion: Date.now()
+        profileMediaVersion: Date.now(),
+        // Mark as a local change so directory/profile sync does not revert it to a
+        // stale server value during propagation (see LOCAL_MEDIA_COOLDOWN_MS in user sagas).
+        coverLocallySetAt: Date.now()
       } as any
     });
     toast.success("Banner updated");

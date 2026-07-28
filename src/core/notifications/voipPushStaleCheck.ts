@@ -3,7 +3,7 @@ import { VoipBridge } from "../softphone/VoipBridge.ts";
 import type { VoipCallData } from "./NotificationManager.ts";
 import { scheduleStaleVoipMissedCallFallback } from "./staleVoipMissedCallFallback.ts";
 
-export const VOIP_PUSH_MAX_AGE_MS = 15_000;
+export const VOIP_PUSH_MAX_AGE_MS = 20_000;
 
 function coerceSentAt(value: unknown): number | null {
   if (value === undefined || value === null || value === "") {
