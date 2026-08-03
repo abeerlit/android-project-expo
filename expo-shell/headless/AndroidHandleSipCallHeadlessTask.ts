@@ -145,6 +145,14 @@ async function handleInboundCall(
       VoxoConnectNotifications?.getIncomingCallNotificationResult?.(callUuid) ??
       Promise.resolve("ERROR");
 
+    let earlyUserAction: string | null = null;
+    notificationResultPromise.then(
+      (result: string) => {
+        earlyUserAction = result;
+      },
+      () => {}
+    );
+
     // Step 2: Establish SIP wake-up registration and wait for INVITE (native already showed incoming UI).
     console.log(`${TAG} Establishing inbound session...`);
     await sessionManager.establishInboundSession(callUuid, callerIp);
@@ -154,7 +162,13 @@ async function handleInboundCall(
     console.log(`${TAG} Got SIP session: ${sessionId}`);
 
     // Step 3: Notify native (second-line UI refresh; dedupe skips duplicate post on first call).
-    if (VoxoConnectNotifications?.reportSignallingEstablished) {
+    // Skip when the user already declined from the notification before the INVITE arrived —
+    // reporting here would re-post the incoming notification/ringtone for a dead call.
+    if (earlyUserAction === "REJECT" || earlyUserAction === "CANCEL") {
+      console.log(
+        `${TAG} User already declined ${callUuid} before INVITE — skipping signalling notification`
+      );
+    } else if (VoxoConnectNotifications?.reportSignallingEstablished) {
       const secondLineHint = sessionManager.hasActiveAnsweredCall();
       VoxoConnectNotifications.reportSignallingEstablished(
         callUuid,

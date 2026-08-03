@@ -10,6 +10,7 @@ import {
   Keyboard,
   ScrollView
 } from "react-native";
+import { Pressable } from "react-native-gesture-handler";
 import { useSelector, useDispatch } from "react-redux";
 
 // Hooks
@@ -133,8 +134,8 @@ export const CallsPage: React.FC = () => {
   };
 
   // Handle forwarding toggle
-  const handleForwardingToggle = (checked: boolean) => {
-    setForwardCalls(checked);
+  const handleForwardingToggle = () => {
+    setForwardCalls((prev) => !prev);
   };
 
   // Handle number change
@@ -250,25 +251,11 @@ export const CallsPage: React.FC = () => {
                 Call Forwarding
               </Text>
 
-              <View style={styles.checkboxContainer}>
-                <AdvancedCheckbox
-                  value={forwardCalls}
-                  onValueChange={(value: boolean | string) =>
-                    handleForwardingToggle(
-                      typeof value === "boolean" ? value : false
-                    )
-                  }
-                  size={componentSize.lg}
-                  containerStyle={styles.checkbox}
-                  checkedColor={
-                    theme.colors["colors-background-bg-brand-solid"]
-                  }
-                  uncheckedColor={
-                    theme.colors["colors-background-bg-brand-solid"]
-                  }
-                  animationType="fade"
-                />
-                <View style={styles.checkboxTextContainer}>
+              <Pressable
+                style={styles.checkboxContainer}
+                onPress={handleForwardingToggle}
+              >
+                <View style={styles.checkboxTitleRow}>
                   <Text
                     weight="medium"
                     size={fontSize.sm}
@@ -278,16 +265,29 @@ export const CallsPage: React.FC = () => {
                   >
                     Forward all calls
                   </Text>
-                  <Text
-                    weight="regular"
-                    size={fontSize.sm}
-                    color="color-colors-text-text-secondary"
-                    align="left"
-                  >
-                    All incoming calls will be forwarded to the number below
-                  </Text>
+                  <View pointerEvents="none" style={styles.checkbox}>
+                    <AdvancedCheckbox
+                      value={forwardCalls}
+                      size={componentSize.lg}
+                      checkedColor={
+                        theme.colors["colors-background-bg-brand-solid"]
+                      }
+                      uncheckedColor={
+                        theme.colors["colors-background-bg-brand-solid"]
+                      }
+                      animationType="fade"
+                    />
+                  </View>
                 </View>
-              </View>
+                <Text
+                  weight="regular"
+                  size={fontSize.sm}
+                  color="color-colors-text-text-secondary"
+                  align="left"
+                >
+                  All incoming calls will be forwarded to the number below
+                </Text>
+              </Pressable>
 
               {forwardCalls && (
                 <TextInput
@@ -428,23 +428,28 @@ const styles = StyleSheet.create({
   },
   toggleRow: {
     flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     gap: padding.lg,
-    alignItems: "center"
+    marginRight: -6
   },
   checkboxContainer: {
-    flexDirection: "row",
-    alignItems: "flex-start",
+    flexDirection: "column",
     marginBottom: padding.md,
-    gap: padding.md
+    gap: 2
+  },
+  checkboxTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: padding.md,
+    paddingRight: padding.md
   },
   checkbox: {
-    marginTop: 2
-  },
-  checkboxTextContainer: {
-    flex: 1
+    flexShrink: 0
   },
   checkboxLabel: {
-    marginBottom: 2
+    flex: 1
   },
   input: {
     height: 50,

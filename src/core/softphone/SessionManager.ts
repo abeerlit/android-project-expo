@@ -399,6 +399,10 @@ export class SessionManager {
     this.suppressPrimaryUaInvites = value;
   }
 
+  public hasPrimaryUA(): boolean {
+    return this.userAgent !== null;
+  }
+
   /**
    * Register with the SIP server
    */
@@ -1456,6 +1460,23 @@ export class SessionManager {
 
       void (async () => {
         try {
+          // Stop the primary UA's WebSocket before creating the wakeup UA.
+          // In foreground mode, two concurrent WebSocket connections cause the SIP server
+          // to route the INVITE to the primary UA instead of the wakeup UA, resulting in
+          // RECEIVE_INVITE_TIMEOUT. This mirrors the headless/background path where
+          // sessionManager.initialize() (and thus the primary UA) is never created.
+          if (this.userAgent) {
+            console.warn(
+              `🔶 [SessionManager] Stopping primary UA before wakeup UA to prevent foreground INVITE routing conflict`
+            );
+            try {
+              await this.userAgent.stop();
+            } catch {
+              /* non-fatal */
+            }
+            this.userAgent = null;
+          }
+
           // Create wake-up UserAgent
           const userAgentOptions: UserAgentOptions = {
             uri: new URI("sip", this.config.user, this.config.domain),

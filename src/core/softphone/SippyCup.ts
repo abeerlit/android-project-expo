@@ -183,6 +183,9 @@ export class SippyCup extends EventEmitter {
    */
   public async initialize(): Promise<void> {
     if (this.isInitialized) {
+      if (!this.sessionManager.hasPrimaryUA()) {
+        await this.sessionManager.initialize();
+      }
       return;
     }
 
