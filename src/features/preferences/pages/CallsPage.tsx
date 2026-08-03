@@ -8,9 +8,9 @@ import {
   Platform,
   TouchableWithoutFeedback,
   Keyboard,
-  ScrollView
+  ScrollView,
+  Pressable
 } from "react-native";
-import { Pressable } from "react-native-gesture-handler";
 import { useSelector, useDispatch } from "react-redux";
 
 // Hooks
@@ -140,25 +140,33 @@ export const CallsPage: React.FC = () => {
 
   // Handle number change
   const handleNumberChange = (text: string) => {
-    // Only allow numbers
-    setForwardingNumber(text);
+    setForwardingNumber(text.replace(/[^\d*#+]/g, ""));
   };
 
   // Save changes for forwarding settings
   const saveForwardingChanges = async () => {
-    if (forwardCalls && !forwardingNumber) {
+    const dialableNumber = forwardingNumber.replace(/[^\d*#+]/g, "");
+
+    if (forwardCalls && !dialableNumber) {
       toast.error("Please enter a forwarding number");
       return;
     }
 
     setIsSaving(true);
     try {
-      await setExtensionForwarding(forwardCalls, forwardingNumber, accessToken);
+      await setExtensionForwarding(forwardCalls, dialableNumber, accessToken);
       setOriginalForwarding(forwardCalls);
       setOriginalNumber(forwardingNumber);
       toast.success("Changes saved");
     } catch (error) {
-      handleApiError(error as any);
+      const apiError = error as any;
+      const serverMessage =
+        apiError?.message ?? apiError?.response?.message;
+      if (typeof serverMessage === "string" && serverMessage.length > 0) {
+        toast.error(serverMessage);
+      } else {
+        handleApiError(apiError);
+      }
       logger.error("Failed to update changes", error);
     } finally {
       setIsSaving(false);
