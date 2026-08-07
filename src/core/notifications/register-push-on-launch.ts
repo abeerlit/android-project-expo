@@ -86,24 +86,38 @@ export async function registerPushTokenForAppLaunch(
     if (Platform.OS === "ios") {
       latestToken = await messaging().getAPNSToken();
     } else {
-      try {
-        latestToken = await messaging().getToken();
-      } catch (error: unknown) {
-        const err = error as { code?: string; message?: string };
-        const errorCode = err?.code || err?.message || "";
-        const isServiceUnavailable =
-          errorCode.includes("SERVICE_NOT_AVAILABLE") ||
-          errorCode.includes("messaging/unknown") ||
-          err?.message?.includes("SERVICE_NOT_AVAILABLE");
+      const MAX_TOKEN_ATTEMPTS = 5;
+      const TOKEN_RETRY_DELAY_MS = 3000;
+      for (let attempt = 1; attempt <= MAX_TOKEN_ATTEMPTS; attempt++) {
+        try {
+          latestToken = await messaging().getToken();
+          break;
+        } catch (error: unknown) {
+          const err = error as { code?: string; message?: string };
+          const errorCode = err?.code || err?.message || "";
+          const isServiceUnavailable =
+            errorCode.includes("SERVICE_NOT_AVAILABLE") ||
+            errorCode.includes("messaging/unknown") ||
+            err?.message?.includes("SERVICE_NOT_AVAILABLE");
 
-        if (isServiceUnavailable) {
-          logger.warn(
-            "Android: Firebase service not available for getToken",
-            { errorCode, errorMessage: err?.message }
-          );
-          return false;
+          if (isServiceUnavailable) {
+            if (attempt < MAX_TOKEN_ATTEMPTS) {
+              logger.warn(
+                `Android: Firebase service not available for getToken (attempt ${attempt}/${MAX_TOKEN_ATTEMPTS}), retrying in ${TOKEN_RETRY_DELAY_MS}ms`,
+                { errorCode, errorMessage: err?.message }
+              );
+              await new Promise(resolve => setTimeout(resolve, TOKEN_RETRY_DELAY_MS));
+            } else {
+              logger.warn(
+                "Android: Firebase service not available for getToken — all attempts exhausted",
+                { errorCode, errorMessage: err?.message }
+              );
+              return false;
+            }
+          } else {
+            throw error;
+          }
         }
-        throw error;
       }
     }
 

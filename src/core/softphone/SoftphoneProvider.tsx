@@ -1046,6 +1046,14 @@ export const SoftphoneProvider: React.FC<{ children: React.ReactNode }> = ({
               } else if (e.error === "REGISTRATION_FAILED") {
                 console.error("[SoftphoneProvider] Registration failed");
               }
+              try {
+                NativeModules.VoxoConnectAndroidNotifications?.reportIncomingCallCancelled?.(
+                  callUuid,
+                  AppState.currentState === "active"
+                );
+              } catch {}
+              voipBridge.handleCallEnd(callUuid);
+              removeCall(callUuid);
             }
             return;
           }
@@ -5560,6 +5568,12 @@ export const SoftphoneProvider: React.FC<{ children: React.ReactNode }> = ({
               } else if (e?.error === "REGISTRATION_FAILED") {
                 console.error("[SoftphoneProvider] Pending Android: registration failed");
               }
+              try {
+                NativeModules.VoxoConnectAndroidNotifications?.reportIncomingCallCancelled?.(
+                  callUuid,
+                  AppState.currentState === "active"
+                );
+              } catch {}
               cleanupVoipPlaceholder();
               removeCall(callUuid);
               setState((prev) => ({

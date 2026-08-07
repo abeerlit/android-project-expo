@@ -1608,16 +1608,17 @@ export class SessionManager {
                 `🔶 [SessionManager] ✅ SUCCESSFULLY REGISTERED WAKEUP UA`
               );
 
-              // Set timeout for receiving INVITE (8 seconds like voxo-mobile)
+              // Set timeout for receiving INVITE (4 seconds — reduced to minimise ringtone duration
+              // when a call is answered on another device before the INVITE reaches Android)
               timeoutHandle = setTimeout(() => {
                 console.error(
-                  `🔶 [SessionManager] ❌ RECEIVE_INVITE_TIMEOUT (8 seconds)`
+                  `🔶 [SessionManager] ❌ RECEIVE_INVITE_TIMEOUT (4 seconds)`
                 );
                 markWakeEstablishSettled();
                 this.pendingInboundUAs.delete(callUuid);
                 reject({
                   error: "RECEIVE_INVITE_TIMEOUT",
-                  message: "Timeout waiting for invite after 8 seconds"
+                  message: "Timeout waiting for invite after 4 seconds"
                 });
 
                 // Cleanup
@@ -1625,7 +1626,7 @@ export class SessionManager {
                   wakeUpUA.stop().catch(() => {});
                   this.wakeUpUAs.delete(wakeUpUA);
                 }
-              }, 8000);
+              }, 4000);
             } else if (
               state === RegistererState.Terminated ||
               state === RegistererState.Unregistered

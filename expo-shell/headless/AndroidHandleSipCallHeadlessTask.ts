@@ -155,7 +155,13 @@ async function handleInboundCall(
 
     // Step 2: Establish SIP wake-up registration and wait for INVITE (native already showed incoming UI).
     console.log(`${TAG} Establishing inbound session...`);
-    await sessionManager.establishInboundSession(callUuid, callerIp);
+    const establishTimeout = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("ESTABLISH_TIMEOUT")), 15000)
+    );
+    await Promise.race([
+      sessionManager.establishInboundSession(callUuid, callerIp),
+      establishTimeout
+    ]);
     console.log(`${TAG} Wake-up registration complete, waiting for INVITE`);
 
     const sessionId = await Promise.race([invitePromise, inviteTimeout]);
@@ -388,12 +394,29 @@ async function handleInboundCall(
   } catch (err: any) {
     if (err?.message === "INVITE_TIMEOUT") {
       console.warn(`${TAG} SIP INVITE never arrived for ${callUuid}`);
-      // Report call cancelled so notification is dismissed
+      if (VoxoConnectNotifications?.reportIncomingCallCancelled) {
+        VoxoConnectNotifications.reportIncomingCallCancelled(callUuid, AppState.currentState === "active");
+      }
+    } else if (err?.message === "ESTABLISH_TIMEOUT") {
+      console.warn(`${TAG} SIP establish timed out for ${callUuid} — cancelling incoming call`);
+      if (VoxoConnectNotifications?.reportIncomingCallCancelled) {
+        VoxoConnectNotifications.reportIncomingCallCancelled(callUuid, AppState.currentState === "active");
+      }
+    } else if (
+      err?.error === "RECEIVE_INVITE_TIMEOUT" ||
+      err?.error === "INVITE_ANSWERED_ELSEWHERE" ||
+      err?.error === "INVITE_CANCELLED_EARLY" ||
+      err?.error === "REGISTRATION_FAILED"
+    ) {
+      console.warn(`${TAG} SIP session failed (${err.error}) for ${callUuid} — cancelling incoming call`);
       if (VoxoConnectNotifications?.reportIncomingCallCancelled) {
         VoxoConnectNotifications.reportIncomingCallCancelled(callUuid, AppState.currentState === "active");
       }
     } else {
       console.error(`${TAG} Error in handleInboundCall:`, err);
+      if (VoxoConnectNotifications?.reportIncomingCallCancelled) {
+        VoxoConnectNotifications.reportIncomingCallCancelled(callUuid, AppState.currentState === "active");
+      }
     }
     try {
       await SessionManager.resetInstance();
