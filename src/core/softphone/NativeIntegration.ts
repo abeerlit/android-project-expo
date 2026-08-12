@@ -21,6 +21,11 @@ import {
   registerCustomNotificationCallChecker,
   reapplyDesiredCallSpeakerAndroid
 } from "./androidCallAudio.ts";
+import {
+  hasOtherOutboundConnected,
+  noteInCallManagerRestartWhileConnected,
+  noteRingbackStartWhileConnected
+} from "./androidCallFlowLog.ts";
 
 const logger = new Logger("NativeIntegration: ");
 
@@ -630,6 +635,19 @@ export class NativeIntegration {
             console.log(
               `🔊 [NI-RINGBACK] ${ts()} Android: starting InCallManager and ringback (_DTMF_ = proper brr-brr tone)...`
             );
+            noteRingbackStartWhileConnected({
+              callId,
+              callUUID,
+              destination,
+              origin: "startOutgoingCall"
+            });
+            if (hasOtherOutboundConnected()) {
+              noteInCallManagerRestartWhileConnected({
+                callId,
+                callUUID,
+                origin: "startOutgoingCall_ringback_warmup"
+              });
+            }
             InCallManager.stopRingtone();
             InCallManager.stopRingback();
             InCallManager.stop();
@@ -703,6 +721,16 @@ export class NativeIntegration {
           // Always stop ringtone when call connects (foreground or background)
           InCallManager.stopRingtone();
           InCallManager.stopRingback();
+          if (
+            Platform.OS === "android" &&
+            hasOtherOutboundConnected(callId)
+          ) {
+            noteInCallManagerRestartWhileConnected({
+              callId,
+              callUUID: callUUID ?? undefined,
+              origin: "updateCallState_CONNECTED"
+            });
+          }
           if (callUUID) {
 
             const usedCustomNotification =

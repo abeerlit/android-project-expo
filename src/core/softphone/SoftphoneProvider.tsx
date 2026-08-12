@@ -55,7 +55,14 @@ import {
   getAndroidPermissionPromptsComplete,
   subscribeAndroidPermissionPromptGate
 } from "core/permissions/android-permission-prompt-gate.ts";
-import { androidCallFlowError, androidCallFlowLog } from "core/softphone/androidCallFlowLog.ts";
+import {
+  androidCallFlowError,
+  androidCallFlowLog,
+  noteOutboundConnected,
+  noteOutboundHangup,
+  noteOutboundPlaceAttempt,
+  noteOutboundTerminal
+} from "core/softphone/androidCallFlowLog.ts";
 import { applyCallSpeakerAndroid } from "core/softphone/androidCallAudio.ts";
 import {
   dismissStaleAndroidVoipCall,
@@ -550,6 +557,25 @@ export const SoftphoneProvider: React.FC<{ children: React.ReactNode }> = ({
       if (callState === CallState.ENDED || callState === CallState.FAILED) {
         outboundCallInProgressRef.current = false;
       }
+
+      const existingCall =
+        stateRef.current.calls[
+          resolveCallsRecordKey(stateRef.current.calls, callId) ?? callId
+        ];
+      const isOutbound = existingCall?.direction === CallDirection.OUTGOING;
+
+      if (isOutbound && callState === CallState.CONNECTED) {
+        noteOutboundConnected(callId);
+      } else if (
+        isOutbound &&
+        (callState === CallState.ENDED || callState === CallState.FAILED)
+      ) {
+        noteOutboundTerminal(callId, callState, {
+          remoteUri: existingCall?.remoteUri,
+          remoteDisplayName: existingCall?.remoteDisplayName
+        });
+      }
+
       setState((prev) => {
         const key = resolveCallsRecordKey(prev.calls, callId) ?? callId;
         const existing = prev.calls[key];
@@ -2595,6 +2621,12 @@ export const SoftphoneProvider: React.FC<{ children: React.ReactNode }> = ({
         liveCallCount: liveCalls.length,
         liveSessionIds: liveCalls.map((c) => c.sessionId)
       });
+      noteOutboundPlaceAttempt({
+        destination,
+        origin: "makeCall",
+        liveCallCount: liveCalls.length,
+        liveSessionIds: liveCalls.map((c) => c.sessionId)
+      });
 
       const resetSipStackForRetry = async (reason: string) => {
         androidCallFlowLog("makeCall", "reset SIP stack before retry", {
@@ -2997,6 +3029,7 @@ export const SoftphoneProvider: React.FC<{ children: React.ReactNode }> = ({
       console.warn(
         `📞 [SP] ${new Date().toISOString()} hangupCall called: callId=${callId}`
       );
+      noteOutboundHangup(callId);
       if (callId === "dialing") {
         outboundDialCancelledRef.current = true;
         setState((prev) =>
