@@ -15,7 +15,7 @@ import {
   Session,
   SessionReferOptions
 } from "sip.js";
-import { Platform } from "react-native";
+import { Platform, AppState, AppStateStatus } from "react-native";
 import {
   mediaDevices,
   MediaStream,
@@ -103,6 +103,10 @@ export class SessionManager {
   /** Full CallOptions for outbound legs (attended transfer fast-path, etc.) */
   private outgoingCallOptions: Map<string, CallOptions> = new Map();
 
+  private appState: AppStateStatus = AppState.currentState;
+  private appStateSubscription: { remove: () => void } | null = null;
+  private mediaRecoverListenerAttached = false;
+
   // Removed transfer state - handled by SippyCup now
 
   /**
@@ -123,7 +127,7 @@ export class SessionManager {
         "📱 [SessionManager] Reusing existing singleton instance, updating eventEmitter"
       );
       // Update eventEmitter to route events to current SippyCup instance
-      SessionManager.instance.eventEmitter = eventEmitter;
+      SessionManager.instance.reattachEventEmitter(eventEmitter);
       // Update config if it has changed (e.g., user credentials updated)
       SessionManager.instance.config = config;
     }
@@ -150,6 +154,124 @@ export class SessionManager {
   private constructor(eventEmitter: EventEmitter, config: SipConfig) {
     this.eventEmitter = eventEmitter;
     this.config = config;
+    this.setupAndroidForegroundRecovery();
+    this.attachMediaRecoverListener();
+  }
+
+  private reattachEventEmitter(eventEmitter: EventEmitter): void {
+    if (this.eventEmitter === eventEmitter) {
+      this.attachMediaRecoverListener();
+      return;
+    }
+    if (this.mediaRecoverListenerAttached) {
+      this.eventEmitter.removeAllListeners("mediaRecoverNeeded");
+      this.mediaRecoverListenerAttached = false;
+    }
+    this.eventEmitter = eventEmitter;
+    this.attachMediaRecoverListener();
+  }
+
+  private attachMediaRecoverListener(): void {
+    if (this.mediaRecoverListenerAttached) {
+      return;
+    }
+    this.eventEmitter.on("mediaRecoverNeeded", (callId: string) => {
+      this.recoverPlayoutForCall(callId);
+    });
+    this.mediaRecoverListenerAttached = true;
+  }
+
+  private setupAndroidForegroundRecovery(): void {
+    if (Platform.OS !== "android") {
+      return;
+    }
+    if (this.appStateSubscription) {
+      return;
+    }
+    this.appStateSubscription = AppState.addEventListener(
+      "change",
+      (next: AppStateStatus) => {
+        const prev = this.appState;
+        this.appState = next;
+        if (
+          prev.match(/inactive|background/) &&
+          next === "active" &&
+          this.managedSessions.size > 0
+        ) {
+          void this.recoverActiveCallsAfterForeground();
+        }
+      }
+    );
+  }
+
+  /** Re-bind Android remote playout after ICE/network/foreground recovery. */
+  private recoverPlayoutForCall(callId: string): void {
+    if (Platform.OS !== "android") {
+      return;
+    }
+    const managed = this.resolveManagedSession(callId);
+    if (!managed || managed.callState === CallState.ENDED) {
+      return;
+    }
+    const info = managed.getCallInfo();
+    console.warn(
+      `[CALL-DROP][SM] recoverPlayoutForCall callId=${callId} uuid=${info.callUuid ?? "?"}`
+    );
+    try {
+      InCallManager.start({ media: "audio", auto: false, ringback: "" });
+    } catch {
+      /* already started */
+    }
+    recoverCustomNotificationPlayout(
+      "[SM-FOREGROUND]",
+      callId,
+      info.callUuid,
+      getDesiredCallSpeaker() || info.isSpeakerOn
+    );
+    // Second pass after route settles.
+    setTimeout(() => {
+      if (managed.callState === CallState.ENDED) {
+        return;
+      }
+      recoverCustomNotificationPlayout(
+        "[SM-FOREGROUND]",
+        callId,
+        info.callUuid,
+        getDesiredCallSpeaker() || info.isSpeakerOn
+      );
+    }, 400);
+  }
+
+  /**
+   * After leaving background during a live call: reconnect SIP + ICE + audio route.
+   */
+  public async recoverActiveCallsAfterForeground(): Promise<void> {
+    if (Platform.OS !== "android") {
+      return;
+    }
+    const live = [...this.managedSessions.values()].filter(
+      (s) =>
+        s.callState !== CallState.ENDED &&
+        s.callState !== CallState.FAILED &&
+        s.state === SessionState.Established
+    );
+    if (live.length === 0) {
+      return;
+    }
+    console.warn(
+      `[CALL-DROP][SM] recoverActiveCallsAfterForeground count=${live.length}`
+    );
+    for (const session of live) {
+      try {
+        await session.recoverAfterForeground();
+      } catch (e) {
+        console.warn(
+          `[CALL-DROP][SM] recoverAfterForeground failed`,
+          session.id,
+          e
+        );
+      }
+    }
   }
 
   /** SIP Call-ID header (RFC) from session, when available */
@@ -1358,9 +1480,19 @@ export class SessionManager {
   public dispose(): void {
     this.suppressPrimaryUaInvites = true;
 
+    if (this.appStateSubscription) {
+      this.appStateSubscription.remove();
+      this.appStateSubscription = null;
+    }
+    if (this.mediaRecoverListenerAttached) {
+      this.eventEmitter.removeAllListeners("mediaRecoverNeeded");
+      this.mediaRecoverListenerAttached = false;
+    }
+
     // Hang up all active calls
     for (const [callId, managedSession] of this.managedSessions.entries()) {
       try {
+        managedSession.clearIceRecoveryState();
         managedSession.bye();
       } catch (error) {
         console.error(`Error hanging up call ${callId}:`, error);
@@ -1839,6 +1971,7 @@ export class SessionManager {
         }
         case SessionState.Terminating:
         case SessionState.Terminated: {
+          managedSession.clearIceRecoveryState();
           const lifecycle = this.outgoingLifecycles.get(callId);
           if (lifecycle) {
             if (!lifecycle.establishedResolved) {
@@ -2009,6 +2142,9 @@ export class SessionManager {
       for (const receiver of receivers) {
         this.attachRemoteAudioTrack(managedSession, callId, receiver.track);
       }
+
+      // Android/sip.js: recover media after Wi‑Fi/data drops (JsSIP SipSession has its own path).
+      managedSession.startIceRecoveryMonitoring();
     } catch (error) {
       console.error("Error setting up remote media:", error);
     }

@@ -1,4 +1,5 @@
 import { EventEmitter } from "events";
+import NetInfo, { NetInfoSubscription } from "@react-native-community/netinfo";
 import { Session, SessionState, SessionInviteOptions } from "sip.js";
 import { SessionDescriptionHandler } from "sip.js/lib/platform/web";
 import { MediaStream } from "@daily-co/react-native-webrtc";
@@ -29,6 +30,20 @@ export class ManagedSession {
   // Current audio state for centralized management
   private currentAudioState: "active" | "muted" | "held" | "disabled" =
     "disabled";
+
+  /** ICE / network drop recovery (Android sip.js path — mirrors JsSIP SipSession). */
+  private iceRestartInFlight = false;
+  private iceDisconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private iceRestartAttempts = 0;
+  private waitingForNetwork = false;
+  private pendingIceRecoverReason: "disconnected" | "failed" | null = null;
+  private netInfoUnsubscribe: NetInfoSubscription | null = null;
+  private offlineWaitTimer: ReturnType<typeof setTimeout> | null = null;
+  private iceListenerAttached = false;
+  private static readonly MAX_ICE_RESTARTS = 5;
+  private static readonly ICE_DISCONNECT_GRACE_MS = 3000;
+  private static readonly ICE_RESTART_COOLDOWN_MS = 5000;
+  private static readonly OFFLINE_WAIT_MS = 60_000;
 
   constructor(
     session: Session,
@@ -603,19 +618,397 @@ export class ManagedSession {
   }
 
   async bye(): Promise<any> {
+    this.clearIceRecoveryState();
     return this.session.bye();
   }
 
   async cancel(): Promise<void> {
+    this.clearIceRecoveryState();
     return (this.session as any).cancel();
   }
 
   async reject(): Promise<void> {
+    this.clearIceRecoveryState();
     return (this.session as any).reject();
   }
 
   async accept(options?: any): Promise<void> {
     return (this.session as any).accept(options);
+  }
+
+  private getPeerConnection(): RTCPeerConnection | null {
+    try {
+      const sdh = this.session.sessionDescriptionHandler as any;
+      return (sdh?.peerConnection as RTCPeerConnection) ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  private static isNetOnline(state: {
+    isConnected: boolean | null;
+    isInternetReachable: boolean | null;
+  }): boolean {
+    return state.isConnected === true && state.isInternetReachable !== false;
+  }
+
+  clearIceRecoveryState(): void {
+    if (this.iceDisconnectTimer) {
+      clearTimeout(this.iceDisconnectTimer);
+      this.iceDisconnectTimer = null;
+    }
+    if (this.offlineWaitTimer) {
+      clearTimeout(this.offlineWaitTimer);
+      this.offlineWaitTimer = null;
+    }
+    if (this.netInfoUnsubscribe) {
+      this.netInfoUnsubscribe();
+      this.netInfoUnsubscribe = null;
+    }
+    this.waitingForNetwork = false;
+    this.pendingIceRecoverReason = null;
+    this.iceRestartInFlight = false;
+  }
+
+  /**
+   * Watch ICE for drops after answer; wait for network if offline, then re-INVITE
+   * with iceRestart so media returns when connectivity comes back (Android).
+   */
+  startIceRecoveryMonitoring(): void {
+    if (this.iceListenerAttached) {
+      return;
+    }
+    const pc = this.getPeerConnection();
+    if (!pc) {
+      console.warn(
+        `[CALL-DROP][SM] no peerConnection yet for ICE monitor`,
+        this.id
+      );
+      return;
+    }
+    this.iceListenerAttached = true;
+    console.warn(`[CALL-DROP][SM] ICE recovery monitor attached`, this.id);
+
+    pc.addEventListener("iceconnectionstatechange", () => {
+      const iceState = pc.iceConnectionState;
+      console.warn(`[CALL-DROP][SM] iceConnectionState=${iceState}`, this.id);
+
+      if (iceState === "connected" || iceState === "completed") {
+        this.iceRestartAttempts = 0;
+        // Keep monitor; only clear timers / offline wait / in-flight gate.
+        if (this.iceDisconnectTimer) {
+          clearTimeout(this.iceDisconnectTimer);
+          this.iceDisconnectTimer = null;
+        }
+        if (this.offlineWaitTimer) {
+          clearTimeout(this.offlineWaitTimer);
+          this.offlineWaitTimer = null;
+        }
+        if (this.netInfoUnsubscribe) {
+          this.netInfoUnsubscribe();
+          this.netInfoUnsubscribe = null;
+        }
+        this.waitingForNetwork = false;
+        this.pendingIceRecoverReason = null;
+        this.iceRestartInFlight = false;
+        this.eventEmitter.emit("mediaRecoverNeeded", this.id);
+        return;
+      }
+
+      if (this.session.state !== SessionState.Established) {
+        return;
+      }
+
+      if (iceState === "disconnected") {
+        if (this.iceDisconnectTimer) {
+          clearTimeout(this.iceDisconnectTimer);
+        }
+        this.iceDisconnectTimer = setTimeout(() => {
+          this.iceDisconnectTimer = null;
+          if (
+            pc.iceConnectionState === "disconnected" &&
+            this.session.state === SessionState.Established
+          ) {
+            void this.recoverIce("disconnected");
+          }
+        }, ManagedSession.ICE_DISCONNECT_GRACE_MS);
+        return;
+      }
+
+      if (iceState === "failed") {
+        if (this.iceDisconnectTimer) {
+          clearTimeout(this.iceDisconnectTimer);
+          this.iceDisconnectTimer = null;
+        }
+        void this.recoverIce("failed");
+      }
+    });
+  }
+
+  /**
+   * App returned to foreground during an active call — reconnect signaling and
+   * kick ICE/audio recovery immediately (do not wait for the disconnect grace).
+   */
+  async recoverAfterForeground(): Promise<void> {
+    if (this.session.state !== SessionState.Established) {
+      return;
+    }
+    console.warn(`[CALL-DROP][SM] foreground resume recovery`, this.id);
+
+    if (this.iceDisconnectTimer) {
+      clearTimeout(this.iceDisconnectTimer);
+      this.iceDisconnectTimer = null;
+    }
+
+    // Always ask UI/audio layer to re-bind playout (Android often mutes on bg).
+    this.eventEmitter.emit("mediaRecoverNeeded", this.id);
+
+    try {
+      await this.ensureSessionTransportConnected();
+    } catch (e) {
+      console.warn(
+        `[CALL-DROP][SM] transport reconnect on resume failed`,
+        this.id,
+        e
+      );
+    }
+
+    if (this.session.state !== SessionState.Established) {
+      return;
+    }
+
+    const pc = this.getPeerConnection();
+    const ice = pc?.iceConnectionState;
+    console.warn(
+      `[CALL-DROP][SM] foreground ICE state=${ice ?? "none"}`,
+      this.id
+    );
+
+    if (
+      !pc ||
+      ice === "failed" ||
+      ice === "disconnected" ||
+      ice === "closed" ||
+      ice === "new"
+    ) {
+      void this.recoverIce(ice === "failed" || ice === "closed" ? "failed" : "disconnected");
+    }
+  }
+
+  private waitForNetworkThenRecover(
+    reason: "disconnected" | "failed"
+  ): void {
+    this.pendingIceRecoverReason = reason;
+    if (this.waitingForNetwork) {
+      return;
+    }
+    this.waitingForNetwork = true;
+    console.warn(
+      `[CALL-DROP][SM] network offline — waiting up to ${ManagedSession.OFFLINE_WAIT_MS}ms (${reason})`,
+      this.id
+    );
+
+    if (!this.offlineWaitTimer) {
+      this.offlineWaitTimer = setTimeout(() => {
+        this.offlineWaitTimer = null;
+        if (this.session.state !== SessionState.Established) {
+          return;
+        }
+        const pc = this.getPeerConnection();
+        const iceOk =
+          pc?.iceConnectionState === "connected" ||
+          pc?.iceConnectionState === "completed";
+        if (!iceOk) {
+          console.warn(
+            `[CALL-DROP][SM] still offline/unrecovered after ${ManagedSession.OFFLINE_WAIT_MS}ms — ending call`,
+            this.id
+          );
+          void this.bye().catch((e) => {
+            console.error("[CALL-DROP][SM] bye after offline wait failed", e);
+          });
+        }
+      }, ManagedSession.OFFLINE_WAIT_MS);
+    }
+
+    if (!this.netInfoUnsubscribe) {
+      this.netInfoUnsubscribe = NetInfo.addEventListener((state) => {
+        if (!ManagedSession.isNetOnline(state)) {
+          return;
+        }
+        if (this.session.state !== SessionState.Established) {
+          this.clearIceRecoveryState();
+          return;
+        }
+        const pending = this.pendingIceRecoverReason || reason;
+        console.warn(
+          `[CALL-DROP][SM] network restored — retrying ICE (${pending})`,
+          this.id
+        );
+        if (this.netInfoUnsubscribe) {
+          this.netInfoUnsubscribe();
+          this.netInfoUnsubscribe = null;
+        }
+        if (this.offlineWaitTimer) {
+          clearTimeout(this.offlineWaitTimer);
+          this.offlineWaitTimer = null;
+        }
+        this.waitingForNetwork = false;
+        this.pendingIceRecoverReason = null;
+        this.iceRestartAttempts = 0;
+        this.iceRestartInFlight = false;
+        this.eventEmitter.emit("mediaRecoverNeeded", this.id);
+        void this.recoverIce(pending);
+      });
+    }
+  }
+
+  private async ensureSessionTransportConnected(): Promise<void> {
+    const ua = this.session.userAgent as {
+      isConnected?: () => boolean;
+      reconnect?: () => Promise<void>;
+    };
+    if (!ua?.isConnected || ua.isConnected()) {
+      return;
+    }
+    if (!ua.reconnect) {
+      throw new Error("UserAgent.reconnect unavailable");
+    }
+    console.warn(
+      `[CALL-DROP][SM] SIP WebSocket down — reconnecting before ICE restart`,
+      this.id
+    );
+    await ua.reconnect();
+    if (!ua.isConnected()) {
+      throw new Error("SIP transport reconnect failed");
+    }
+  }
+
+  private async recoverIce(
+    reason: "disconnected" | "failed"
+  ): Promise<void> {
+    if (this.session.state !== SessionState.Established) {
+      return;
+    }
+    if (this.isHeld) {
+      console.warn(
+        `[CALL-DROP][SM] skip ICE recovery while on hold (${reason})`,
+        this.id
+      );
+      return;
+    }
+    if (this.iceRestartInFlight || this.reinviteInProgress) {
+      console.warn(
+        `[CALL-DROP][SM] ICE recovery already in flight (${reason})`,
+        this.id
+      );
+      return;
+    }
+
+    let online = true;
+    try {
+      const net = await NetInfo.fetch();
+      online = ManagedSession.isNetOnline(net);
+    } catch (e) {
+      console.warn("[CALL-DROP][SM] NetInfo.fetch failed, assuming online", e);
+    }
+
+    if (this.session.state !== SessionState.Established) {
+      return;
+    }
+
+    if (!online) {
+      this.waitForNetworkThenRecover(reason);
+      return;
+    }
+
+    if (this.iceRestartAttempts >= ManagedSession.MAX_ICE_RESTARTS) {
+      console.warn(
+        `[CALL-DROP][SM] ICE recovery exhausted after ${this.iceRestartAttempts} attempts (${reason}), ending call`,
+        this.id
+      );
+      try {
+        await this.bye();
+      } catch (e) {
+        console.error("[CALL-DROP][SM] bye after ICE failure failed", e);
+        this.eventEmitter.emit("callEnded", this.id, `ICE_${reason}`);
+      }
+      return;
+    }
+
+    this.iceRestartAttempts += 1;
+    this.iceRestartInFlight = true;
+    console.warn(
+      `[CALL-DROP][SM] ICE restart attempt ${this.iceRestartAttempts}/${ManagedSession.MAX_ICE_RESTARTS} (${reason}) — keep call up, waiting for media`,
+      this.id
+    );
+
+    try {
+      if (this.reinviteInProgress || this.isSessionReinviteInProgress()) {
+        await this.waitForReinviteCompletion();
+      }
+      if (this.session.state !== SessionState.Established) {
+        return;
+      }
+      await this.ensureSessionTransportConnected();
+      if (this.session.state !== SessionState.Established) {
+        return;
+      }
+
+      // Prefer local ICE restart when the peer connection supports it; still send
+      // re-INVITE so the remote side renegotiates candidates.
+      const pc = this.getPeerConnection() as RTCPeerConnection & {
+        restartIce?: () => void;
+      };
+      try {
+        pc?.restartIce?.();
+      } catch {
+        /* optional */
+      }
+
+      const options: SessionInviteOptions = {
+        sessionDescriptionHandlerOptions: {
+          offerOptions: { iceRestart: true },
+          iceGatheringTimeout: 8000
+        } as any,
+        requestDelegate: {
+          onAccept: (): void => {
+            console.warn(
+              `[CALL-DROP][SM] ICE restart re-INVITE accepted — recovering playout`,
+              this.id
+            );
+            this.eventEmitter.emit("mediaRecoverNeeded", this.id);
+          },
+          onReject: (): void => {
+            console.warn(
+              `[CALL-DROP][SM] ICE restart re-INVITE rejected`,
+              this.id
+            );
+          }
+        }
+      };
+
+      this.reinviteInProgress = true;
+      await this.session.invite(options);
+      this.reinviteInProgress = false;
+
+      if (this.session.state === SessionState.Established) {
+        this.eventEmitter.emit("mediaRecoverNeeded", this.id);
+      }
+    } catch (e) {
+      this.reinviteInProgress = false;
+      if (this.session.state !== SessionState.Established) {
+        console.warn(
+          `[CALL-DROP][SM] ICE restart aborted — call already ended`,
+          this.id
+        );
+      } else {
+        console.error("[CALL-DROP][SM] ICE restart re-INVITE failed", e);
+      }
+    } finally {
+      setTimeout(() => {
+        this.iceRestartInFlight = false;
+      }, ManagedSession.ICE_RESTART_COOLDOWN_MS);
+    }
   }
 
   /**

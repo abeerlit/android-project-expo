@@ -979,7 +979,16 @@ export class NativeIntegration {
       logger.debug(
         `Restoring ${this.activeCalls.size} active calls from background`
       );
-      // The call state should be maintained by CallKit and the softphone
+      if (Platform.OS === "android") {
+        for (const [callUUID, callId] of this.activeCalls.entries()) {
+          recoverCustomNotificationPlayout(
+            "[NI-FOREGROUND]",
+            callId,
+            callUUID,
+            getDesiredCallSpeaker()
+          );
+        }
+      }
     }
   }
 
