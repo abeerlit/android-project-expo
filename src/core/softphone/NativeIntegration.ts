@@ -24,6 +24,9 @@ import {
 import {
   hasOtherOutboundConnected,
   noteInCallManagerRestartWhileConnected,
+  noteIncomingAnswerAttempt,
+  noteIncomingRingStarted,
+  noteIncomingRingTeardown,
   noteRingbackStartWhileConnected
 } from "./androidCallFlowLog.ts";
 
@@ -291,9 +294,19 @@ export class NativeIntegration {
                     : hasPendingSipSession(callId) ? callId
                     : hasPendingSipSession(callUUID) ? callUUID
                     : callUUID; // Default to callUUID for Android
+                  noteIncomingAnswerAttempt(callUUID, "notification_ANSWER", {
+                    answerId,
+                    callId
+                  });
                   Notifications.stopIncomingCallRingtone?.(callUUID);
+                  noteIncomingRingTeardown(callUUID, "notification_answer_stop_ringtone", {
+                    origin: "custom_notification_ANSWER"
+                  });
                   voipBridge.handleCallAnswer(answerId);
                 } else {
+                  noteIncomingAnswerAttempt(callUUID, "notification_ANSWER_onAnswerCall", {
+                    callId
+                  });
                   this.onAnswerCall(callId);
                 }
               } else if (result === "END_AND_ACCEPT") {
@@ -309,6 +322,10 @@ export class NativeIntegration {
                   );
                   return;
                 }
+                noteIncomingRingTeardown(callUUID, "user_reject_or_cancel", {
+                  result,
+                  origin: "custom_notification"
+                });
                 const voipBridge = VoipBridge.getInstance();
                 // VoipBridge tracks FCM UUID; callId is often the composite SessionManager id — use callUUID first.
                 if (voipBridge.isVoipCall(callUUID)) {
@@ -338,6 +355,12 @@ export class NativeIntegration {
           this.androidCustomNotificationCalls.add(callUUID);
           const secondLineMode =
             callInfo.useEndAndAcceptSecondLine === true;
+          noteIncomingRingStarted(callUUID, {
+            callId,
+            callerName,
+            origin: "postIncomingCallNotification",
+            secondLineMode
+          });
           Notifications.postIncomingCallNotification(
             callUUID,
             callerNumber,
@@ -1365,6 +1388,13 @@ export class NativeIntegration {
       // Stop STREAM_RING synchronously before getUserMedia / WebRTC grabs audio focus.
       Notifications?.stopIncomingCallRingtone?.(callUUID);
       Notifications?.reportCallAnswered?.(callUUID, displayName);
+      noteIncomingAnswerAttempt(callUUID, "markIncomingAnswerStarted", {
+        callIdOrUuid,
+        displayName
+      });
+      noteIncomingRingTeardown(callUUID, "mark_answer_started_stop_ringtone", {
+        origin: "markIncomingAnswerStarted"
+      });
     } catch (e) {
       console.warn("[NI] markIncomingAnswerStarted reportCallAnswered failed:", e);
     }

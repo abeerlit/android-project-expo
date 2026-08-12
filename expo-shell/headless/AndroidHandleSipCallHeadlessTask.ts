@@ -22,6 +22,13 @@ import {
   dismissStaleAndroidVoipCall,
   shouldSkipStaleVoipPush
 } from "core/notifications/voipPushStaleCheck.ts";
+import {
+  noteIncomingAnswerAttempt,
+  noteIncomingAnswerConnected,
+  noteIncomingAnswerFailed,
+  noteIncomingRingStarted,
+  noteIncomingRingTeardown
+} from "core/softphone/androidCallFlowLog.ts";
 
 const VoxoConnectNotifications = NativeModules.VoxoConnectAndroidNotifications;
 
@@ -105,10 +112,19 @@ async function handleInboundCall(
     callerName,
     callerNumber
   });
+  noteIncomingRingStarted(callUuid, {
+    origin: "headless_inbound",
+    callerName,
+    callerNumber
+  });
 
   const config = await getSipConfigAfterRehydrate();
   if (!config) {
     console.error(`${TAG} Cannot handle inbound call - no SIP config`);
+    noteIncomingRingTeardown(callUuid, "invite_timeout", {
+      origin: "headless_inbound",
+      signal: "no_sip_config"
+    });
     return;
   }
 
@@ -249,6 +265,9 @@ async function handleInboundCall(
     );
 
     if (waitResult === "REMOTE_ENDED") {
+      noteIncomingRingTeardown(callUuid, "remote_ended", {
+        origin: "headless_inbound"
+      });
       if (VoxoConnectNotifications?.reportIncomingCallCancelled) {
         VoxoConnectNotifications.reportIncomingCallCancelled(
           callUuid,
@@ -267,6 +286,9 @@ async function handleInboundCall(
       notificationResult === "ANSWER" ||
       notificationResult === "END_AND_ACCEPT"
     ) {
+      noteIncomingAnswerAttempt(callUuid, "headless_notification_ANSWER", {
+        notificationResult
+      });
       if (notificationResult === "END_AND_ACCEPT") {
         const sessions = (global as any).__headlessCallSessions as
           | Map<string, { sessionManager: SessionManager; sessionId: string }>
@@ -289,6 +311,10 @@ async function handleInboundCall(
       console.log(`${TAG} Answering SIP session ${sessionId}`);
       await sessionManager.answerCall(sessionId);
       console.log(`${TAG} SIP call answered successfully`);
+      noteIncomingAnswerConnected(callUuid, {
+        origin: "headless_answer",
+        sessionId
+      });
 
       // Swap incoming notification to ongoing (stops ringtone/vibration)
       if (VoxoConnectNotifications?.reportCallAnswered) {
@@ -370,6 +396,10 @@ async function handleInboundCall(
       console.log(
         `${TAG} Rejecting/cancelling SIP session ${sessionId}`
       );
+      noteIncomingRingTeardown(callUuid, "user_reject_or_cancel", {
+        origin: "headless_inbound",
+        notificationResult
+      });
       try {
         await sessionManager.declineCall(sessionId);
       } catch (err) {
@@ -382,6 +412,10 @@ async function handleInboundCall(
       console.warn(
         `${TAG} Unknown notification result: ${notificationResult}, cleaning up`
       );
+      noteIncomingRingTeardown(callUuid, "user_reject_or_cancel", {
+        origin: "headless_inbound",
+        notificationResult
+      });
       try {
         await sessionManager.declineCall(sessionId);
       } catch {
@@ -394,11 +428,17 @@ async function handleInboundCall(
   } catch (err: any) {
     if (err?.message === "INVITE_TIMEOUT") {
       console.warn(`${TAG} SIP INVITE never arrived for ${callUuid}`);
+      noteIncomingRingTeardown(callUuid, "invite_timeout", {
+        origin: "headless_inbound"
+      });
       if (VoxoConnectNotifications?.reportIncomingCallCancelled) {
         VoxoConnectNotifications.reportIncomingCallCancelled(callUuid, AppState.currentState === "active");
       }
     } else if (err?.message === "ESTABLISH_TIMEOUT") {
       console.warn(`${TAG} SIP establish timed out for ${callUuid} — cancelling incoming call`);
+      noteIncomingRingTeardown(callUuid, "establish_timeout", {
+        origin: "headless_inbound"
+      });
       if (VoxoConnectNotifications?.reportIncomingCallCancelled) {
         VoxoConnectNotifications.reportIncomingCallCancelled(callUuid, AppState.currentState === "active");
       }
@@ -409,11 +449,27 @@ async function handleInboundCall(
       err?.error === "REGISTRATION_FAILED"
     ) {
       console.warn(`${TAG} SIP session failed (${err.error}) for ${callUuid} — cancelling incoming call`);
+      noteIncomingRingTeardown(
+        callUuid,
+        err.error === "INVITE_ANSWERED_ELSEWHERE"
+          ? "answered_elsewhere"
+          : err.error === "INVITE_CANCELLED_EARLY"
+            ? "remote_ended"
+            : "invite_timeout",
+        { origin: "headless_inbound", sipError: err.error }
+      );
       if (VoxoConnectNotifications?.reportIncomingCallCancelled) {
         VoxoConnectNotifications.reportIncomingCallCancelled(callUuid, AppState.currentState === "active");
       }
     } else {
       console.error(`${TAG} Error in handleInboundCall:`, err);
+      noteIncomingAnswerFailed(callUuid, err, {
+        origin: "headless_inbound"
+      });
+      noteIncomingRingTeardown(callUuid, "invite_timeout", {
+        origin: "headless_inbound",
+        signal: "unhandled_error"
+      });
       if (VoxoConnectNotifications?.reportIncomingCallCancelled) {
         VoxoConnectNotifications.reportIncomingCallCancelled(callUuid, AppState.currentState === "active");
       }

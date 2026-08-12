@@ -58,6 +58,11 @@ import {
 import {
   androidCallFlowError,
   androidCallFlowLog,
+  noteIncomingAnswerAttempt,
+  noteIncomingAnswerConnected,
+  noteIncomingAnswerFailed,
+  noteIncomingRingTeardown,
+  noteLaunchFromAnswerNoLiveSession,
   noteOutboundConnected,
   noteOutboundHangup,
   noteOutboundPlaceAttempt,
@@ -567,12 +572,28 @@ export const SoftphoneProvider: React.FC<{ children: React.ReactNode }> = ({
       if (isOutbound && callState === CallState.CONNECTED) {
         noteOutboundConnected(callId);
       } else if (
+        !isOutbound &&
+        callState === CallState.CONNECTED &&
+        Platform.OS === "android"
+      ) {
+        noteIncomingAnswerConnected(callId, {
+          origin: "callStateChanged"
+        });
+      } else if (
         isOutbound &&
         (callState === CallState.ENDED || callState === CallState.FAILED)
       ) {
         noteOutboundTerminal(callId, callState, {
           remoteUri: existingCall?.remoteUri,
           remoteDisplayName: existingCall?.remoteDisplayName
+        });
+      } else if (
+        !isOutbound &&
+        (callState === CallState.ENDED || callState === CallState.FAILED) &&
+        Platform.OS === "android"
+      ) {
+        noteIncomingRingTeardown(callId, "call_ended", {
+          terminalState: callState
         });
       }
 
@@ -1065,12 +1086,26 @@ export const SoftphoneProvider: React.FC<{ children: React.ReactNode }> = ({
               logger.error("Android FCM inbound SessionManager failed", e);
               if (e.error === "RECEIVE_INVITE_TIMEOUT") {
                 console.error("[SoftphoneProvider] INVITE timeout (Android FCM)");
+                noteIncomingRingTeardown(callUuid, "invite_timeout", {
+                  origin: "fcm_inbound"
+                });
               } else if (e.error === "INVITE_ANSWERED_ELSEWHERE") {
                 console.error("[SoftphoneProvider] Answered elsewhere");
+                noteIncomingRingTeardown(callUuid, "answered_elsewhere", {
+                  origin: "fcm_inbound"
+                });
               } else if (e.error === "INVITE_CANCELLED_EARLY") {
                 console.error("[SoftphoneProvider] Call cancelled");
+                noteIncomingRingTeardown(callUuid, "remote_ended", {
+                  origin: "fcm_inbound",
+                  signal: "cancelled_early"
+                });
               } else if (e.error === "REGISTRATION_FAILED") {
                 console.error("[SoftphoneProvider] Registration failed");
+                noteIncomingRingTeardown(callUuid, "invite_timeout", {
+                  origin: "fcm_inbound",
+                  signal: "registration_failed"
+                });
               }
               try {
                 NativeModules.VoxoConnectAndroidNotifications?.reportIncomingCallCancelled?.(
@@ -2191,6 +2226,10 @@ export const SoftphoneProvider: React.FC<{ children: React.ReactNode }> = ({
               "Skipping stale Android launch-from-answer (no live session after deferral; often Metro reload after remote hangup)",
               { callUuid }
             );
+            noteLaunchFromAnswerNoLiveSession(callUuid, {
+              origin: "processLaunchFromAnswer",
+              deferred: true
+            });
           }
           return;
         }
@@ -5594,12 +5633,26 @@ export const SoftphoneProvider: React.FC<{ children: React.ReactNode }> = ({
                 console.error(
                   "[SoftphoneProvider] Pending Android: INVITE timeout — discarding stale incoming UI"
                 );
+                noteIncomingRingTeardown(callUuid, "invite_timeout", {
+                  origin: "pending_android"
+                });
               } else if (e?.error === "INVITE_ANSWERED_ELSEWHERE") {
                 console.error("[SoftphoneProvider] Pending Android: answered elsewhere");
+                noteIncomingRingTeardown(callUuid, "answered_elsewhere", {
+                  origin: "pending_android"
+                });
               } else if (e?.error === "INVITE_CANCELLED_EARLY") {
                 console.error("[SoftphoneProvider] Pending Android: call cancelled");
+                noteIncomingRingTeardown(callUuid, "remote_ended", {
+                  origin: "pending_android",
+                  signal: "cancelled_early"
+                });
               } else if (e?.error === "REGISTRATION_FAILED") {
                 console.error("[SoftphoneProvider] Pending Android: registration failed");
+                noteIncomingRingTeardown(callUuid, "invite_timeout", {
+                  origin: "pending_android",
+                  signal: "registration_failed"
+                });
               }
               try {
                 NativeModules.VoxoConnectAndroidNotifications?.reportIncomingCallCancelled?.(
@@ -5724,6 +5777,11 @@ export const SoftphoneProvider: React.FC<{ children: React.ReactNode }> = ({
           timestamp: new Date().toISOString()
         }
       );
+      if (Platform.OS === "android") {
+        noteIncomingAnswerAttempt(callId, "handleVoipAnswer", {
+          appState: AppState.currentState
+        });
+      }
       try {
         const voipBridge = VoipBridge.getInstance();
 
@@ -5793,6 +5851,9 @@ export const SoftphoneProvider: React.FC<{ children: React.ReactNode }> = ({
               "[SoftphoneProvider] Android answerCall (SessionManager) failed:",
               error
             );
+            noteIncomingAnswerFailed(callId, error, {
+              origin: "handleVoipAnswer_sessionManager"
+            });
             updateCall(callId, { state: CallState.FAILED, connected: false });
             const cupErr = await ensureInitialized(false);
             cupErr.emit("callStateChanged", callId, CallState.FAILED);
@@ -5806,6 +5867,12 @@ export const SoftphoneProvider: React.FC<{ children: React.ReactNode }> = ({
             callId
           );
           logger.error("No SipSession found to answer", { callId });
+          if (Platform.OS === "android") {
+            noteIncomingAnswerFailed(callId, new Error("No SipSession found"), {
+              origin: "handleVoipAnswer",
+              signal: "no_session"
+            });
+          }
 
           // Update state to show error
           updateCall(callId, {
@@ -5914,6 +5981,11 @@ export const SoftphoneProvider: React.FC<{ children: React.ReactNode }> = ({
           error
         );
         logger.error("Error answering VoIP call:", error);
+        if (Platform.OS === "android") {
+          noteIncomingAnswerFailed(callId, error, {
+            origin: "handleVoipAnswer_catch"
+          });
+        }
 
         // Update state to show error
         updateCall(callId, {

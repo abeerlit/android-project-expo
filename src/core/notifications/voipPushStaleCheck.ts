@@ -2,6 +2,7 @@ import { AppState, NativeModules, Platform } from "react-native";
 import { VoipBridge } from "../softphone/VoipBridge.ts";
 import type { VoipCallData } from "./NotificationManager.ts";
 import { scheduleStaleVoipMissedCallFallback } from "./staleVoipMissedCallFallback.ts";
+import { noteIncomingRingTeardown } from "../softphone/androidCallFlowLog.ts";
 
 export const VOIP_PUSH_MAX_AGE_MS = 20_000;
 
@@ -95,6 +96,9 @@ export function dismissStaleAndroidVoipCall(
       const appInForeground = AppState.currentState === "active";
       Notifications?.reportIncomingCallCancelled?.(callUuid, appInForeground);
       Notifications?.stopIncomingCallRingtone?.(callUuid);
+      noteIncomingRingTeardown(callUuid, "remote_ended", {
+        origin: "dismissStaleAndroidVoipCall"
+      });
     } catch {
       /* ignore */
     }

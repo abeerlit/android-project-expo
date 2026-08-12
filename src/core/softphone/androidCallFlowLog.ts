@@ -280,3 +280,243 @@ export function noteOutboundPlaceAttempt(data: {
     });
   }
 }
+
+type AndroidIncomingRingPhase =
+  | "notification_answer_tap"
+  | "lock_screen_answer_no_pickup"
+  | "voip_answer_failed"
+  | "voip_answer_no_session"
+  | "answer_never_connected"
+  | "answered_elsewhere_ring_should_stop"
+  | "remote_ended_ring_should_stop"
+  | "invite_timeout_ring_should_stop"
+  | "ringing_never_stops_suspect"
+  | "ring_teardown_requested";
+
+const incomingRingStartedAtMs = new Map<string, number>();
+const incomingAnswerAttemptAtMs = new Map<string, number>();
+const incomingRingWatchdogs = new Map<string, ReturnType<typeof setTimeout>>();
+const incomingAnswerWatchdogs = new Map<string, ReturnType<typeof setTimeout>>();
+
+const RING_NEVER_STOPS_MS = 90_000;
+const ANSWER_NO_PICKUP_MS = 25_000;
+
+function normalizeIncomingUuid(callUuid: string): string {
+  return String(callUuid || "").trim().toLowerCase();
+}
+
+function clearIncomingRingWatchdog(callUuid: string): void {
+  const key = normalizeIncomingUuid(callUuid);
+  const t = incomingRingWatchdogs.get(key);
+  if (t) {
+    clearTimeout(t);
+    incomingRingWatchdogs.delete(key);
+  }
+}
+
+function clearIncomingAnswerWatchdog(callUuid: string): void {
+  const key = normalizeIncomingUuid(callUuid);
+  const t = incomingAnswerWatchdogs.get(key);
+  if (t) {
+    clearTimeout(t);
+    incomingAnswerWatchdogs.delete(key);
+  }
+}
+
+function emitIncomingRingAnomaly(
+  phase: AndroidIncomingRingPhase,
+  data: Record<string, unknown>
+): void {
+  if (Platform.OS !== "android") {
+    return;
+  }
+
+  const payload = toSerializable({
+    phase,
+    appState: AppState.currentState,
+    ...data
+  });
+
+  console.warn(
+    `${ANDROID_CALLFLOW_SUBSYSTEM} ${new Date().toISOString()} [incomingRingAnomaly] ${phase}${safePayload(
+      payload
+    )}`
+  );
+
+  Sentry.withScope((scope) => {
+    scope.setLevel("error");
+    scope.setTag("feature", "android_incoming_answer_ring");
+    scope.setTag("incoming_ring_phase", phase);
+    scope.setTag("platform", "android");
+    scope.setContext("android_incoming_answer_ring", payload);
+    Sentry.captureMessage(`Android incoming answer/ring: ${phase}`, "error");
+  });
+}
+
+export function noteIncomingRingStarted(
+  callUuid: string,
+  data: Record<string, unknown> = {}
+): void {
+  if (Platform.OS !== "android" || !callUuid) return;
+  const key = normalizeIncomingUuid(callUuid);
+  const now = Date.now();
+  incomingRingStartedAtMs.set(key, now);
+  clearIncomingRingWatchdog(key);
+
+  androidCallFlowLog("incomingRing", "ring/notification started", {
+    callUuid,
+    ...data
+  });
+
+  const watchdog = setTimeout(() => {
+    incomingRingWatchdogs.delete(key);
+    if (!incomingRingStartedAtMs.has(key)) return;
+    const startedAt = incomingRingStartedAtMs.get(key) ?? now;
+    emitIncomingRingAnomaly("ringing_never_stops_suspect", {
+      callUuid,
+      ringMs: Date.now() - startedAt,
+      signal: "no_teardown_within_watch_window",
+      ...data
+    });
+  }, RING_NEVER_STOPS_MS);
+  incomingRingWatchdogs.set(key, watchdog);
+}
+
+export function noteIncomingRingTeardown(
+  callUuid: string,
+  reason: string,
+  data: Record<string, unknown> = {}
+): void {
+  if (Platform.OS !== "android" || !callUuid) return;
+  const key = normalizeIncomingUuid(callUuid);
+  const startedAt = incomingRingStartedAtMs.get(key);
+  clearIncomingRingWatchdog(key);
+  incomingRingStartedAtMs.delete(key);
+
+  const payload = {
+    callUuid,
+    reason,
+    ringMs: startedAt != null ? Date.now() - startedAt : undefined,
+    ...data
+  };
+
+  if (
+    reason === "answered_elsewhere" ||
+    reason === "remote_ended" ||
+    reason === "invite_timeout" ||
+    reason === "establish_timeout"
+  ) {
+    const phase: AndroidIncomingRingPhase =
+      reason === "answered_elsewhere"
+        ? "answered_elsewhere_ring_should_stop"
+        : reason === "remote_ended"
+          ? "remote_ended_ring_should_stop"
+          : "invite_timeout_ring_should_stop";
+    emitIncomingRingAnomaly(phase, payload);
+  } else {
+    androidCallFlowLog("incomingRing", "ring/notification teardown", payload);
+  }
+}
+
+export function noteIncomingAnswerAttempt(
+  callUuid: string,
+  origin: string,
+  data: Record<string, unknown> = {}
+): void {
+  if (Platform.OS !== "android" || !callUuid) return;
+  const key = normalizeIncomingUuid(callUuid);
+  const now = Date.now();
+  incomingAnswerAttemptAtMs.set(key, now);
+  clearIncomingAnswerWatchdog(key);
+
+  emitIncomingRingAnomaly("notification_answer_tap", {
+    callUuid,
+    origin,
+    ...data
+  });
+
+  const watchdog = setTimeout(() => {
+    incomingAnswerWatchdogs.delete(key);
+    if (!incomingAnswerAttemptAtMs.has(key)) return;
+    const attemptedAt = incomingAnswerAttemptAtMs.get(key) ?? now;
+    emitIncomingRingAnomaly("answer_never_connected", {
+      callUuid,
+      origin,
+      answerWaitMs: Date.now() - attemptedAt,
+      signal: "accept_launched_but_no_connected",
+      ...data
+    });
+    emitIncomingRingAnomaly("lock_screen_answer_no_pickup", {
+      callUuid,
+      origin,
+      answerWaitMs: Date.now() - attemptedAt,
+      ...data
+    });
+  }, ANSWER_NO_PICKUP_MS);
+  incomingAnswerWatchdogs.set(key, watchdog);
+}
+
+export function noteIncomingAnswerConnected(
+  callUuid: string,
+  data: Record<string, unknown> = {}
+): void {
+  if (Platform.OS !== "android" || !callUuid) return;
+  const key = normalizeIncomingUuid(callUuid);
+  clearIncomingAnswerWatchdog(key);
+  incomingAnswerAttemptAtMs.delete(key);
+  noteIncomingRingTeardown(callUuid, "connected", data);
+  androidCallFlowLog("incomingRing", "answer reached CONNECTED", {
+    callUuid,
+    ...data
+  });
+}
+
+export function noteIncomingAnswerFailed(
+  callUuid: string,
+  error: unknown,
+  data: Record<string, unknown> = {}
+): void {
+  if (Platform.OS !== "android" || !callUuid) return;
+  const key = normalizeIncomingUuid(callUuid);
+  clearIncomingAnswerWatchdog(key);
+  incomingAnswerAttemptAtMs.delete(key);
+
+  const err = error instanceof Error ? error : new Error(String(error));
+  const noSession =
+    /no sipsession|no session|not found/i.test(err.message) ||
+    data.signal === "no_session";
+
+  emitIncomingRingAnomaly(
+    noSession ? "voip_answer_no_session" : "voip_answer_failed",
+    {
+      callUuid,
+      errorMessage: err.message,
+      ...data
+    }
+  );
+  emitIncomingRingAnomaly("lock_screen_answer_no_pickup", {
+    callUuid,
+    errorMessage: err.message,
+    ...data
+  });
+}
+
+export function noteLaunchFromAnswerNoLiveSession(
+  callUuid: string,
+  data: Record<string, unknown> = {}
+): void {
+  if (Platform.OS !== "android" || !callUuid) return;
+  const key = normalizeIncomingUuid(callUuid);
+  clearIncomingAnswerWatchdog(key);
+  incomingAnswerAttemptAtMs.delete(key);
+  emitIncomingRingAnomaly("lock_screen_answer_no_pickup", {
+    callUuid,
+    signal: "launch_from_answer_no_live_session",
+    ...data
+  });
+  emitIncomingRingAnomaly("voip_answer_no_session", {
+    callUuid,
+    signal: "launch_from_answer_no_live_session",
+    ...data
+  });
+}

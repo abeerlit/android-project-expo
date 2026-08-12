@@ -5,6 +5,7 @@ import { VoipCallData } from "../notifications/NotificationManager";
 import { CallInfo, CallState, CallDirection } from "./types";
 import { Logger } from "shared/utils/Logger.ts";
 import BackgroundTaskManager from "../background/BackgroundTaskManager.ts";
+import { noteIncomingAnswerAttempt } from "./androidCallFlowLog.ts";
 
 const logger = new Logger("VoipBridge: ");
 
@@ -209,6 +210,9 @@ export class VoipBridge extends EventEmitter {
       timestamp: new Date().toISOString()
     });
 
+    if (Platform.OS === "android") {
+      noteIncomingAnswerAttempt(callId, "VoipBridge.handleCallAnswer", {});
+    }
     this.emit("answerVoipCall", callId);
 
     console.log("🟦 [VoipBridge] 📞 ✅ answerVoipCall event emitted");
