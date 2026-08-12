@@ -29,6 +29,12 @@ import {
   recoverCustomNotificationPlayout
 } from "./androidCallAudio.ts";
 import {
+  noteOutboundGetUserMediaFailed,
+  noteOutboundGetUserMediaResult,
+  noteOutboundUplinkHealth,
+  snapshotPeerConnectionMedia
+} from "./androidCallFlowLog.ts";
+import {
   SipConfig,
   CallState,
   CallDirection,
@@ -1958,6 +1964,37 @@ export class SessionManager {
           // Set up remote media handling when connected
           this.setupRemoteMedia(managedSession, callId);
 
+          if (
+            Platform.OS === "android" &&
+            managedSession.direction === CallDirection.OUTGOING
+          ) {
+            const runUplinkCheck = (probe: string) => {
+              try {
+                const session = managedSession.getUnderlyingSession();
+                const pc = (session.sessionDescriptionHandler as any)
+                  ?.peerConnection;
+                noteOutboundUplinkHealth(
+                  callId,
+                  snapshotPeerConnectionMedia(pc),
+                  {
+                    probe,
+                    direction: "outbound",
+                    isMuted: managedSession.isMuted === true,
+                    audioState: managedSession.audioState
+                  }
+                );
+              } catch (e) {
+                console.warn(
+                  `[SM] outbound uplink health probe failed (${probe})`,
+                  e
+                );
+              }
+            };
+            runUplinkCheck("established_immediate");
+            setTimeout(() => runUplinkCheck("established_plus_500ms"), 500);
+            setTimeout(() => runUplinkCheck("established_plus_2000ms"), 2000);
+          }
+
           // FCM wake inbound: drop REGISTER binding once dialog is up so expiry/refresh
           // timers cannot crash the app after background freeze or post-call idle.
           const wakeRelease = managedSession.getWakeReleaseBeforeUaStop?.();
@@ -2173,9 +2210,19 @@ export class SessionManager {
       };
 
       const stream = await mediaDevices.getUserMedia(constraints);
+      if (Platform.OS === "android") {
+        noteOutboundGetUserMediaResult(stream, {
+          origin: "SessionManager.getLocalStream"
+        });
+      }
       return stream;
     } catch (error) {
       console.error("Error getting local media stream:", error);
+      if (Platform.OS === "android") {
+        noteOutboundGetUserMediaFailed(error, {
+          origin: "SessionManager.getLocalStream"
+        });
+      }
       throw error;
     }
   }

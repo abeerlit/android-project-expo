@@ -1,9 +1,14 @@
 import { EventEmitter } from "events";
 import NetInfo, { NetInfoSubscription } from "@react-native-community/netinfo";
+import { Platform } from "react-native";
 import { Session, SessionState, SessionInviteOptions } from "sip.js";
 import { SessionDescriptionHandler } from "sip.js/lib/platform/web";
 import { MediaStream } from "@daily-co/react-native-webrtc";
-import { CallInfo, CallState } from "./types";
+import { CallInfo, CallState, CallDirection } from "./types";
+import {
+  noteOutboundUplinkHealth,
+  snapshotPeerConnectionMedia
+} from "./androidCallFlowLog.ts";
 
 /**
  * ManagedSession wraps a SIP.js Session with enhanced state tracking and management
@@ -570,6 +575,23 @@ export class ManagedSession {
               );
             }
           });
+
+          if (
+            Platform.OS === "android" &&
+            this.direction === CallDirection.OUTGOING &&
+            this.callState === CallState.CONNECTED
+          ) {
+            noteOutboundUplinkHealth(
+              this.id,
+              snapshotPeerConnectionMedia(peerConnection),
+              {
+                probe: "verifyAudioState",
+                direction: "outbound",
+                isMuted: this.isMuted,
+                audioState: this.audioState
+              }
+            );
+          }
         } else {
           console.warn(
             `[${this.id}] PeerConnection not available for audio verification`
@@ -712,6 +734,27 @@ export class ManagedSession {
         this.pendingIceRecoverReason = null;
         this.iceRestartInFlight = false;
         this.eventEmitter.emit("mediaRecoverNeeded", this.id);
+
+        if (
+          Platform.OS === "android" &&
+          this.direction === CallDirection.OUTGOING &&
+          this.callState === CallState.CONNECTED
+        ) {
+          try {
+            noteOutboundUplinkHealth(
+              this.id,
+              snapshotPeerConnectionMedia(pc),
+              {
+                probe: `ice_${iceState}`,
+                direction: "outbound",
+                isMuted: this.isMuted,
+                audioState: this.audioState
+              }
+            );
+          } catch {
+            /* ignore sentry probe errors */
+          }
+        }
         return;
       }
 

@@ -520,3 +520,179 @@ export function noteLaunchFromAnswerNoLiveSession(
     ...data
   });
 }
+
+type AndroidOutboundUplinkPhase =
+  | "getusermedia_failed"
+  | "getusermedia_no_audio_tracks"
+  | "no_audio_sender_at_connected"
+  | "sender_disabled_at_connected"
+  | "sender_ended_at_connected"
+  | "no_uplink_downlink_ok"
+  | "muted_at_outbound_connected";
+
+export type PeerMediaSnapshot = {
+  audioSenderCount: number;
+  audioReceiverCount: number;
+  sendersEnabled: number;
+  sendersLive: number;
+  receiversLive: number;
+  receiversEnabled: number;
+  iceConnectionState?: string;
+  connectionState?: string;
+};
+
+export function snapshotPeerConnectionMedia(
+  pc: {
+    getSenders?: () => Array<{ track?: { kind?: string; enabled?: boolean; readyState?: string } | null }>;
+    getReceivers?: () => Array<{ track?: { kind?: string; enabled?: boolean; readyState?: string } | null }>;
+    iceConnectionState?: string;
+    connectionState?: string;
+  } | null | undefined
+): PeerMediaSnapshot {
+  const empty: PeerMediaSnapshot = {
+    audioSenderCount: 0,
+    audioReceiverCount: 0,
+    sendersEnabled: 0,
+    sendersLive: 0,
+    receiversLive: 0,
+    receiversEnabled: 0
+  };
+  if (!pc) return empty;
+
+  const senders = pc.getSenders?.() ?? [];
+  const receivers = pc.getReceivers?.() ?? [];
+  let audioSenderCount = 0;
+  let sendersEnabled = 0;
+  let sendersLive = 0;
+  let audioReceiverCount = 0;
+  let receiversLive = 0;
+  let receiversEnabled = 0;
+
+  for (const sender of senders) {
+    const track = sender.track;
+    if (!track || track.kind !== "audio") continue;
+    audioSenderCount += 1;
+    if (track.enabled) sendersEnabled += 1;
+    if (track.readyState === "live") sendersLive += 1;
+  }
+  for (const receiver of receivers) {
+    const track = receiver.track;
+    if (!track || track.kind !== "audio") continue;
+    audioReceiverCount += 1;
+    if (track.enabled) receiversEnabled += 1;
+    if (track.readyState === "live") receiversLive += 1;
+  }
+
+  return {
+    audioSenderCount,
+    audioReceiverCount,
+    sendersEnabled,
+    sendersLive,
+    receiversLive,
+    receiversEnabled,
+    iceConnectionState: pc.iceConnectionState,
+    connectionState: pc.connectionState
+  };
+}
+
+function emitOutboundUplinkAnomaly(
+  phase: AndroidOutboundUplinkPhase,
+  data: Record<string, unknown>
+): void {
+  if (Platform.OS !== "android") {
+    return;
+  }
+
+  const payload = toSerializable({
+    phase,
+    appState: AppState.currentState,
+    ...data
+  });
+
+  console.warn(
+    `${ANDROID_CALLFLOW_SUBSYSTEM} ${new Date().toISOString()} [outboundUplinkAnomaly] ${phase}${safePayload(
+      payload
+    )}`
+  );
+
+  Sentry.withScope((scope) => {
+    scope.setLevel("error");
+    scope.setTag("feature", "android_outbound_uplink");
+    scope.setTag("outbound_uplink_phase", phase);
+    scope.setTag("platform", "android");
+    scope.setContext("android_outbound_uplink", payload);
+    Sentry.captureMessage(`Android outbound uplink: ${phase}`, "error");
+  });
+}
+
+export function noteOutboundGetUserMediaFailed(
+  error: unknown,
+  data: Record<string, unknown> = {}
+): void {
+  if (Platform.OS !== "android") return;
+  const err = error instanceof Error ? error : new Error(String(error));
+  emitOutboundUplinkAnomaly("getusermedia_failed", {
+    errorMessage: err.message,
+    errorName: err.name,
+    ...data
+  });
+}
+
+export function noteOutboundGetUserMediaResult(
+  stream: { getAudioTracks?: () => Array<{ enabled?: boolean; readyState?: string; muted?: boolean }> } | null,
+  data: Record<string, unknown> = {}
+): void {
+  if (Platform.OS !== "android") return;
+  const tracks = stream?.getAudioTracks?.() ?? [];
+  if (tracks.length === 0) {
+    emitOutboundUplinkAnomaly("getusermedia_no_audio_tracks", data);
+    return;
+  }
+  androidCallFlowLog("outboundUplink", "getUserMedia ok", {
+    audioTrackCount: tracks.length,
+    enabledCount: tracks.filter((t) => t.enabled).length,
+    liveCount: tracks.filter((t) => t.readyState === "live").length,
+    mutedCount: tracks.filter((t) => t.muted).length,
+    ...data
+  });
+}
+
+export function noteOutboundUplinkHealth(
+  callId: string,
+  snapshot: PeerMediaSnapshot,
+  data: Record<string, unknown> = {}
+): void {
+  if (Platform.OS !== "android" || !callId) return;
+
+  const payload = {
+    callId,
+    ...snapshot,
+    ...data
+  };
+
+  androidCallFlowLog("outboundUplink", "media health snapshot", payload);
+
+  const downlinkOk =
+    snapshot.audioReceiverCount > 0 && snapshot.receiversLive > 0;
+  const noSender = snapshot.audioSenderCount === 0;
+  const senderDisabled =
+    snapshot.audioSenderCount > 0 && snapshot.sendersEnabled === 0;
+  const senderEnded =
+    snapshot.audioSenderCount > 0 && snapshot.sendersLive === 0;
+
+  if (data.isMuted === true && data.direction === "outbound") {
+    emitOutboundUplinkAnomaly("muted_at_outbound_connected", payload);
+  }
+
+  if (noSender) {
+    emitOutboundUplinkAnomaly("no_audio_sender_at_connected", payload);
+  } else if (senderDisabled) {
+    emitOutboundUplinkAnomaly("sender_disabled_at_connected", payload);
+  } else if (senderEnded) {
+    emitOutboundUplinkAnomaly("sender_ended_at_connected", payload);
+  }
+
+  if (downlinkOk && (noSender || senderDisabled || senderEnded)) {
+    emitOutboundUplinkAnomaly("no_uplink_downlink_ok", payload);
+  }
+}
