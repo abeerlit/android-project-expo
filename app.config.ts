@@ -1,5 +1,14 @@
 import type { ExpoConfig, ConfigContext } from "expo/config";
 import path from "path";
+import dotenv from "dotenv";
+
+dotenv.config({ path: path.join(__dirname, ".env") });
+
+const sentryDsn =
+  (process.env.SENTRY_DSN || process.env.EXPO_PUBLIC_SENTRY_DSN || "").trim();
+if (sentryDsn && !process.env.EXPO_PUBLIC_SENTRY_DSN) {
+  process.env.EXPO_PUBLIC_SENTRY_DSN = sentryDsn;
+}
 
 const packageName = process.env.ANDROID_PACKAGE ?? "co.voxo.android";
 const displayName = process.env.DISPLAY_NAME ?? "VOXO Connect";
@@ -154,7 +163,11 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         process.env.EXPO_PUBLIC_MEETINGS_NATIVE === "1" ||
         process.env.EXPO_PUBLIC_MEETINGS_NATIVE === "true",
       API_URL: process.env.API_URL,
-      SENTRY_DSN: process.env.SENTRY_DSN,
+      SENTRY_DSN: sentryDsn,
+      EXPO_PUBLIC_SENTRY_DSN: sentryDsn,
+      SENTRY_ORG: process.env.SENTRY_ORG || "",
+      SENTRY_PROJECT: process.env.SENTRY_PROJECT || "",
+      APP_ENV: process.env.APP_ENV || process.env.EAS_BUILD_PROFILE || "",
       EXPO_PUBLIC_MINIMAL_BOOT:
         process.env.EXPO_PUBLIC_MINIMAL_BOOT === "1" ||
         process.env.EXPO_PUBLIC_MINIMAL_BOOT === "true",

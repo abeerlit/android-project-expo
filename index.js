@@ -40,8 +40,15 @@ if (Platform.OS === "android") {
 import { enableScreens } from "react-native-screens";
 import { registerRootComponent } from "expo";
 import Constants from "expo-constants";
+import * as Sentry from "@sentry/react-native";
 import BootProbe from "./expo-shell/BootProbe.tsx";
 import DeferredEntry from "./expo-shell/DeferredEntry.tsx";
+
+try {
+  require("./expo-shell/setupSentry.ts").setupSentry();
+} catch (e) {
+  console.warn("[expo-shell] Sentry setup skipped:", e);
+}
 
 enableScreens(true);
 
@@ -50,20 +57,21 @@ const minimalBoot =
   Constants.expoConfig?.extra?.EXPO_PUBLIC_MINIMAL_BOOT === true;
 
 const Root = minimalBoot ? BootProbe : DeferredEntry;
+const SentryRoot = Sentry.wrap(Root);
 
-registerRootComponent(Root);
+registerRootComponent(SentryRoot);
 
 /** Bare MainActivity (copied Kotlin) loads "VOXOConnect"; Expo registerRootComponent uses "main". */
 function qualifyRoot() {
   if (process.env.NODE_ENV !== "production") {
     try {
       const { withDevTools } = require("expo/src/launch/withDevTools");
-      return withDevTools(Root);
+      return withDevTools(SentryRoot);
     } catch {
-      return Root;
+      return SentryRoot;
     }
   }
-  return Root;
+  return SentryRoot;
 }
 
 AppRegistry.registerComponent("VOXOConnect", () => qualifyRoot());

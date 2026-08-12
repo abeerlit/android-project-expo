@@ -35,6 +35,25 @@ import { CallUiVisibilityProvider } from "features/calling/CallUiVisibilityConte
 
 setupWebRTCPolyfill();
 
+function SentryUserSync() {
+  const user = useSelector((s: State) => s.userReducer.user);
+  useEffect(() => {
+    if (user?.id != null) {
+      Sentry.setUser({
+        id: String(user.id),
+        email: user.email || undefined,
+        username: user.extName || user.extNum || undefined
+      });
+      if (user.tenantId != null) {
+        Sentry.setTag("tenant_id", String(user.tenantId));
+      }
+    } else {
+      Sentry.setUser(null);
+    }
+  }, [user?.id, user?.email, user?.extName, user?.extNum, user?.tenantId]);
+  return null;
+}
+
 function AndroidEnableMobileCallNotificationsSync() {
   const user = useSelector((s: State) => s.userReducer.user);
   useEffect(() => {
@@ -188,6 +207,7 @@ function AppContent() {
 
   return (
     <Provider store={store}>
+      <SentryUserSync />
       <AndroidEnableMobileCallNotificationsSync />
       <NavigationContainer
         ref={navigationRef}
