@@ -193,7 +193,6 @@ export class SlimSipClient extends events.EventEmitter {
             this.emit("reconnected");
 
             this.ua.once("registered", () => {
-              this.emit("renegotiate");
               isReconnecting = false;
             });
           });
@@ -226,10 +225,6 @@ export class SlimSipClient extends events.EventEmitter {
           const sipSession = new SipSession(rtcSession, this.ua, {
             pcConfig: this.pcConfig,
             callUuid: uuid
-          });
-
-          this.on("renegotiate", () => {
-            sipSession.performRenegotiate();
           });
 
           resolve(sipSession);
@@ -378,10 +373,6 @@ export class SlimSipClient extends events.EventEmitter {
             }`
           );
           sipSession.emit("sessionFailed", data);
-        });
-
-        this.on("renegotiate", () => {
-          sipSession.performRenegotiate();
         });
 
         resolve(sipSession);

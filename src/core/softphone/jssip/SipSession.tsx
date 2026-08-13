@@ -72,6 +72,8 @@ interface JsSIPRTCSession {
   refer(target: string, args?: any): void;
   sendDTMF(tone: string, args?: any): void;
   renegotiate(options?: any): void;
+  isReadyToReOffer(): boolean;
+  _sendReinvite(options?: any): void;
   on(
     event:
       | "peerconnection"
@@ -148,15 +150,23 @@ class SipSession extends events.EventEmitter {
   private iceGatherTimeout: number = 10000;
   private iceRestartInFlight = false;
   private iceDisconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private iceRestartDelayTimer: ReturnType<typeof setTimeout> | null = null;
   private iceRestartAttempts = 0;
-  private waitingForNetwork = false;
+  private waitingForConnectivity = false;
   private pendingIceRecoverReason: "disconnected" | "failed" | null = null;
   private netInfoUnsubscribe: NetInfoSubscription | null = null;
   private offlineWaitTimer: ReturnType<typeof setTimeout> | null = null;
+  private uaConnectedHandler: (() => void) | null = null;
+  private iceRestartCooldownTimer: ReturnType<typeof setTimeout> | null = null;
+  private signalingHangupSuppressed = false;
+  private originalOnTransportError: ((...args: any[]) => void) | null = null;
+  private originalOnRequestTimeout: ((...args: any[]) => void) | null = null;
   private static readonly MAX_ICE_RESTARTS = 5;
-  private static readonly ICE_DISCONNECT_GRACE_MS = 3000;
-  private static readonly ICE_RESTART_COOLDOWN_MS = 5000;
+  private static readonly ICE_DISCONNECT_GRACE_MS = 15_000;
+  private static readonly ICE_RESTART_COOLDOWN_MS = 8_000;
   private static readonly OFFLINE_WAIT_MS = 60_000;
+  private static readonly POST_RESTORE_DELAY_MS = 2_000;
+  private static readonly GLARE_DELAY_MAX_MS = 1_500;
 
   constructor(
     rtcSession: JsSIPRTCSession,
@@ -353,16 +363,42 @@ class SipSession extends events.EventEmitter {
   }
 
   async performRenegotiate(): Promise<void> {
-    this.rtcSession._connection.restartIce();
-    this.renegAllowed = true;
+    if (!this.canAttemptRecovery() || !this.isSipConnected()) {
+      console.warn(
+        "[CALL-DROP] skip performRenegotiate — session or SIP socket not ready",
+        this.callUuid
+      );
+      return;
+    }
+    this.sendIceRestartReinvite();
   }
 
   private static isNetOnline(state: {
     isConnected: boolean | null;
     isInternetReachable: boolean | null;
   }): boolean {
+    return state.isConnected === true && state.isInternetReachable === true;
+  }
+
+  private isSipConnected(): boolean {
+    try {
+      return this.ua?.isConnected?.() === true;
+    } catch {
+      return false;
+    }
+  }
+
+  private isIceHealthy(): boolean {
+    const state = this.rtcSession?._connection?.iceConnectionState;
+    return state === "connected" || state === "completed";
+  }
+
+  private canAttemptRecovery(): boolean {
     return (
-      state.isConnected === true && state.isInternetReachable !== false
+      this.status === SessionStatus.answered &&
+      !this.rtcSession.isEnded() &&
+      !this.localHold &&
+      !this.remoteHold
     );
   }
 
@@ -371,6 +407,15 @@ class SipSession extends events.EventEmitter {
       clearTimeout(this.iceDisconnectTimer);
       this.iceDisconnectTimer = null;
     }
+    if (this.iceRestartDelayTimer) {
+      clearTimeout(this.iceRestartDelayTimer);
+      this.iceRestartDelayTimer = null;
+    }
+    if (this.iceRestartCooldownTimer) {
+      clearTimeout(this.iceRestartCooldownTimer);
+      this.iceRestartCooldownTimer = null;
+    }
+    this.restoreSignalingHangup();
     if (this.offlineWaitTimer) {
       clearTimeout(this.offlineWaitTimer);
       this.offlineWaitTimer = null;
@@ -379,101 +424,184 @@ class SipSession extends events.EventEmitter {
       this.netInfoUnsubscribe();
       this.netInfoUnsubscribe = null;
     }
-    this.waitingForNetwork = false;
+    if (this.uaConnectedHandler && this.ua?.removeListener) {
+      this.ua.removeListener("connected", this.uaConnectedHandler);
+      this.uaConnectedHandler = null;
+    }
+    this.waitingForConnectivity = false;
     this.pendingIceRecoverReason = null;
     this.iceRestartInFlight = false;
   }
 
-  private waitForNetworkThenRecover(
+  private suppressSignalingHangup(): void {
+    if (this.signalingHangupSuppressed) {
+      return;
+    }
+    const rtc = this.rtcSession as any;
+    if (typeof rtc?.onTransportError !== "function") {
+      return;
+    }
+    this.originalOnTransportError = rtc.onTransportError.bind(rtc);
+    this.originalOnRequestTimeout = rtc.onRequestTimeout?.bind(rtc) ?? null;
+    rtc.onTransportError = () => {
+      console.warn(
+        "[CALL-DROP] JsSIP transport error suppressed during ICE recovery",
+        this.callUuid
+      );
+    };
+    rtc.onRequestTimeout = () => {
+      console.warn(
+        "[CALL-DROP] JsSIP request timeout suppressed during ICE recovery",
+        this.callUuid
+      );
+    };
+    this.signalingHangupSuppressed = true;
+  }
+
+  private restoreSignalingHangup(): void {
+    if (!this.signalingHangupSuppressed) {
+      return;
+    }
+    const rtc = this.rtcSession as any;
+    if (this.originalOnTransportError) {
+      rtc.onTransportError = this.originalOnTransportError;
+    }
+    if (this.originalOnRequestTimeout) {
+      rtc.onRequestTimeout = this.originalOnRequestTimeout;
+    }
+    this.signalingHangupSuppressed = false;
+    this.originalOnTransportError = null;
+    this.originalOnRequestTimeout = null;
+  }
+
+  private ensureOfflineWaitTimer(): void {
+    if (this.offlineWaitTimer) {
+      return;
+    }
+    this.offlineWaitTimer = setTimeout(() => {
+      this.offlineWaitTimer = null;
+      this.terminateIfUnrecovered();
+    }, SipSession.OFFLINE_WAIT_MS);
+  }
+
+  private terminateIfUnrecovered(): void {
+    if (!this.canAttemptRecovery() || this.isIceHealthy()) {
+      return;
+    }
+    if (!this.isSipConnected()) {
+      console.warn(
+        `[CALL-DROP] still unrecovered after ${SipSession.OFFLINE_WAIT_MS}ms but SIP is down — not hanging up locally (BYE would be lost)`,
+        this.callUuid
+      );
+      return;
+    }
+    console.warn(
+      `[CALL-DROP] still unrecovered after ${SipSession.OFFLINE_WAIT_MS}ms — sending BYE`,
+      this.callUuid
+    );
+    try {
+      this.sipTerminate();
+    } catch (e) {
+      logger.error("[CALL-DROP] sipTerminate after offline wait failed", e);
+    }
+  }
+
+  private waitForConnectivityThenRecover(
     reason: "disconnected" | "failed"
   ): void {
     this.pendingIceRecoverReason = reason;
-    if (this.waitingForNetwork) {
+    if (this.waitingForConnectivity) {
       return;
     }
-    this.waitingForNetwork = true;
+    this.waitingForConnectivity = true;
+    this.suppressSignalingHangup();
+    this.ensureOfflineWaitTimer();
     console.warn(
-      `[CALL-DROP] network offline — waiting up to ${SipSession.OFFLINE_WAIT_MS}ms before giving up (${reason})`,
+      `[CALL-DROP] waiting for network + SIP socket (up to ${SipSession.OFFLINE_WAIT_MS}ms) (${reason})`,
       this.callUuid
     );
 
-    if (!this.offlineWaitTimer) {
-      this.offlineWaitTimer = setTimeout(() => {
-        this.offlineWaitTimer = null;
-        if (
-          this.status === SessionStatus.answered &&
-          !this.rtcSession.isEnded()
-        ) {
-          const pc = this.rtcSession._connection;
-          const iceOk =
-            pc?.iceConnectionState === "connected" ||
-            pc?.iceConnectionState === "completed";
-          if (!iceOk) {
-            console.warn(
-              `[CALL-DROP] still offline/unrecovered after ${SipSession.OFFLINE_WAIT_MS}ms — terminating`,
-              this.callUuid
-            );
-            try {
-              this.sipTerminate();
-            } catch (e) {
-              logger.error(
-                "[CALL-DROP] sipTerminate after offline wait failed",
-                e
-              );
-            }
-          }
-        }
-      }, SipSession.OFFLINE_WAIT_MS);
-    }
+    const tryRecover = () => {
+      if (!this.canAttemptRecovery()) {
+        this.clearIceRecoveryState();
+        return;
+      }
+      if (this.isIceHealthy()) {
+        this.clearIceRecoveryState();
+        return;
+      }
+      const pending = this.pendingIceRecoverReason || reason;
+      void this.recoverIce(pending);
+    };
 
     if (!this.netInfoUnsubscribe) {
       this.netInfoUnsubscribe = NetInfo.addEventListener((state) => {
         if (!SipSession.isNetOnline(state)) {
           return;
         }
-        if (
-          this.status !== SessionStatus.answered ||
-          this.rtcSession.isEnded()
-        ) {
-          this.clearIceRecoveryState();
-          return;
-        }
-        const pending = this.pendingIceRecoverReason || reason;
         console.warn(
-          `[CALL-DROP] network restored — retrying ICE (${pending})`,
+          "[CALL-DROP] network restored — checking SIP socket before ICE restart",
           this.callUuid
         );
-        if (this.netInfoUnsubscribe) {
-          this.netInfoUnsubscribe();
-          this.netInfoUnsubscribe = null;
-        }
-        if (this.offlineWaitTimer) {
-          clearTimeout(this.offlineWaitTimer);
-          this.offlineWaitTimer = null;
-        }
-        this.waitingForNetwork = false;
-        this.pendingIceRecoverReason = null;
-        this.iceRestartAttempts = 0;
-        this.iceRestartInFlight = false;
-        void this.recoverIce(pending);
+        tryRecover();
       });
     }
+
+    if (!this.uaConnectedHandler && this.ua?.on) {
+      this.uaConnectedHandler = () => {
+        console.warn(
+          "[CALL-DROP] SIP socket reconnected — checking ICE recovery",
+          this.callUuid
+        );
+        tryRecover();
+      };
+      this.ua.on("connected", this.uaConnectedHandler);
+    }
+  }
+
+  private sendIceRestartReinvite(): void {
+    const rtc = this.rtcSession as JsSIPRTCSession;
+    if (typeof rtc.isReadyToReOffer === "function" && !rtc.isReadyToReOffer()) {
+      console.warn(
+        "[CALL-DROP] skip ICE re-INVITE — session not ready to re-offer",
+        this.callUuid
+      );
+      return;
+    }
+    if (typeof rtc._sendReinvite !== "function") {
+      logger.error("[CALL-DROP] _sendReinvite missing on RTCSession");
+      return;
+    }
+    this.suppressSignalingHangup();
+    console.warn("[CALL-DROP] sending ICE-restart re-INVITE", this.callUuid);
+    rtc._sendReinvite({
+      rtcOfferConstraints: { iceRestart: true },
+      eventHandlers: {
+        succeeded: () => {
+          console.warn(
+            "[CALL-DROP] ICE-restart re-INVITE succeeded",
+            this.callUuid
+          );
+        },
+        failed: (response: any) => {
+          console.warn(
+            "[CALL-DROP] ICE-restart re-INVITE failed — keeping call up",
+            this.callUuid,
+            response?.status_code || response
+          );
+        }
+      }
+    });
   }
 
   private async recoverIce(
     reason: "disconnected" | "failed"
   ): Promise<void> {
-    if (this.status !== SessionStatus.answered) {
+    if (!this.canAttemptRecovery()) {
       return;
     }
-    if (this.localHold || this.remoteHold) {
-      logger.debug(
-        `[CALL-DROP] skip ICE recovery while on hold (${reason})`,
-        this.callUuid
-      );
-      return;
-    }
-    if (this.rtcSession.isEnded()) {
+    if (this.isIceHealthy()) {
+      this.clearIceRecoveryState();
       return;
     }
     if (this.iceRestartInFlight) {
@@ -484,52 +612,82 @@ class SipSession extends events.EventEmitter {
       return;
     }
 
-    let online = true;
+    let online = false;
     try {
       const net = await NetInfo.fetch();
       online = SipSession.isNetOnline(net);
     } catch (e) {
-      logger.debug("[CALL-DROP] NetInfo.fetch failed, assuming online", e);
+      logger.debug("[CALL-DROP] NetInfo.fetch failed, treating as offline", e);
     }
 
-    if (!online) {
-      this.waitForNetworkThenRecover(reason);
+    if (!online || !this.isSipConnected()) {
+      this.waitForConnectivityThenRecover(reason);
       return;
     }
 
     if (this.iceRestartAttempts >= SipSession.MAX_ICE_RESTARTS) {
       console.warn(
-        `[CALL-DROP] ICE recovery exhausted after ${this.iceRestartAttempts} online attempts (${reason}), terminating`,
+        `[CALL-DROP] ICE recovery exhausted after ${this.iceRestartAttempts} attempts (${reason}) — keeping SIP dialog`,
         this.callUuid
       );
-      try {
-        this.sipTerminate();
-      } catch (e) {
-        logger.error("[CALL-DROP] sipTerminate after ICE failure failed", e);
-        this.emit("sessionFailed", { cause: `ICE_${reason.toUpperCase()}` });
-      }
       return;
     }
 
-    this.iceRestartAttempts += 1;
     this.iceRestartInFlight = true;
+    this.suppressSignalingHangup();
+    this.ensureOfflineWaitTimer();
+    const delay =
+      SipSession.POST_RESTORE_DELAY_MS +
+      Math.floor(Math.random() * SipSession.GLARE_DELAY_MAX_MS);
     console.warn(
-      `[CALL-DROP] ICE restart attempt ${this.iceRestartAttempts}/${SipSession.MAX_ICE_RESTARTS} (${reason})`,
+      `[CALL-DROP] connectivity ready — delaying ${delay}ms before ICE restart (${reason})`,
       this.callUuid
     );
 
-    try {
-      void this.performRenegotiate();
-    } catch (e) {
-      logger.error("[CALL-DROP] ICE restart threw", e);
-      this.iceRestartInFlight = false;
-      this.emit("sessionFailed", { cause: "ICE_RESTART_ERROR" });
-      return;
-    }
+    this.iceRestartDelayTimer = setTimeout(() => {
+      this.iceRestartDelayTimer = null;
+      if (!this.canAttemptRecovery()) {
+        this.iceRestartInFlight = false;
+        return;
+      }
+      if (this.isIceHealthy()) {
+        console.warn(
+          "[CALL-DROP] ICE recovered on its own — skipping re-INVITE",
+          this.callUuid
+        );
+        this.clearIceRecoveryState();
+        return;
+      }
+      if (!this.isSipConnected()) {
+        this.iceRestartInFlight = false;
+        this.waitForConnectivityThenRecover(reason);
+        return;
+      }
 
-    setTimeout(() => {
-      this.iceRestartInFlight = false;
-    }, SipSession.ICE_RESTART_COOLDOWN_MS);
+      this.iceRestartAttempts += 1;
+      console.warn(
+        `[CALL-DROP] ICE restart attempt ${this.iceRestartAttempts}/${SipSession.MAX_ICE_RESTARTS} (${reason})`,
+        this.callUuid
+      );
+
+      try {
+        this.sendIceRestartReinvite();
+      } catch (e) {
+        logger.error("[CALL-DROP] ICE restart threw", e);
+      }
+
+      this.iceRestartCooldownTimer = setTimeout(() => {
+        this.iceRestartCooldownTimer = null;
+        this.iceRestartInFlight = false;
+        if (
+          this.canAttemptRecovery() &&
+          !this.isIceHealthy() &&
+          this.iceRestartAttempts < SipSession.MAX_ICE_RESTARTS
+        ) {
+          void this.recoverIce(reason);
+        }
+      }, SipSession.ICE_RESTART_COOLDOWN_MS);
+    }, delay);
   }
 
   private onPeerConnection(pc: RTCPeerConnection) {
@@ -542,9 +700,9 @@ class SipSession extends events.EventEmitter {
       if (this.renegAllowed) {
         this.renegAllowed = false;
         logger.debug("negotiationneeded", evt);
-        this.rtcSession.renegotiate({
-          rtcOfferConstraints: { iceRestart: true }
-        });
+        if (this.canAttemptRecovery() && this.isSipConnected()) {
+          this.sendIceRestartReinvite();
+        }
       }
     });
 
@@ -558,28 +716,21 @@ class SipSession extends events.EventEmitter {
         return;
       }
 
-      if (state === "disconnected") {
+      if (state === "disconnected" || state === "failed") {
         if (this.iceDisconnectTimer) {
           clearTimeout(this.iceDisconnectTimer);
         }
+        const reason: "disconnected" | "failed" =
+          state === "failed" ? "failed" : "disconnected";
         this.iceDisconnectTimer = setTimeout(() => {
           this.iceDisconnectTimer = null;
-          if (
-            pc.iceConnectionState === "disconnected" &&
-            this.status === SessionStatus.answered
-          ) {
-            void this.recoverIce("disconnected");
+          const stillBroken =
+            pc.iceConnectionState === "disconnected" ||
+            pc.iceConnectionState === "failed";
+          if (stillBroken && this.status === SessionStatus.answered) {
+            void this.recoverIce(reason);
           }
         }, SipSession.ICE_DISCONNECT_GRACE_MS);
-        return;
-      }
-
-      if (state === "failed") {
-        if (this.iceDisconnectTimer) {
-          clearTimeout(this.iceDisconnectTimer);
-          this.iceDisconnectTimer = null;
-        }
-        void this.recoverIce("failed");
       }
     });
   }
