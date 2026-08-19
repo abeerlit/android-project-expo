@@ -1,0 +1,400 @@
+diff --git a/node_modules/@daily-co/react-native-daily-js/android/build/.transforms/47062d632cebb0aeb9c4a69558c0d14d/results.bin b/node_modules/@daily-co/react-native-daily-js/android/build/.transforms/47062d632cebb0aeb9c4a69558c0d14d/results.bin
+new file mode 100644
+index 0000000..0d259dd
+--- /dev/null
++++ b/node_modules/@daily-co/react-native-daily-js/android/build/.transforms/47062d632cebb0aeb9c4a69558c0d14d/results.bin
+@@ -0,0 +1 @@
++o/classes
+diff --git a/node_modules/@daily-co/react-native-daily-js/android/build/.transforms/47062d632cebb0aeb9c4a69558c0d14d/transformed/classes/classes_dex/classes.dex b/node_modules/@daily-co/react-native-daily-js/android/build/.transforms/47062d632cebb0aeb9c4a69558c0d14d/transformed/classes/classes_dex/classes.dex
+new file mode 100644
+index 0000000..3fd3626
+Binary files /dev/null and b/node_modules/@daily-co/react-native-daily-js/android/build/.transforms/47062d632cebb0aeb9c4a69558c0d14d/transformed/classes/classes_dex/classes.dex differ
+diff --git a/node_modules/@daily-co/react-native-daily-js/android/build/.transforms/76c7279ffde2346eb2f7613f4f345558/results.bin b/node_modules/@daily-co/react-native-daily-js/android/build/.transforms/76c7279ffde2346eb2f7613f4f345558/results.bin
+new file mode 100644
+index 0000000..0d259dd
+--- /dev/null
++++ b/node_modules/@daily-co/react-native-daily-js/android/build/.transforms/76c7279ffde2346eb2f7613f4f345558/results.bin
+@@ -0,0 +1 @@
++o/classes
+diff --git a/node_modules/@daily-co/react-native-daily-js/android/build/.transforms/76c7279ffde2346eb2f7613f4f345558/transformed/classes/classes_dex/classes.dex b/node_modules/@daily-co/react-native-daily-js/android/build/.transforms/76c7279ffde2346eb2f7613f4f345558/transformed/classes/classes_dex/classes.dex
+new file mode 100644
+index 0000000..fdb6d2e
+Binary files /dev/null and b/node_modules/@daily-co/react-native-daily-js/android/build/.transforms/76c7279ffde2346eb2f7613f4f345558/transformed/classes/classes_dex/classes.dex differ
+diff --git a/node_modules/@daily-co/react-native-daily-js/android/build/generated/source/buildConfig/debug/com/daily/reactlibrary/BuildConfig.java b/node_modules/@daily-co/react-native-daily-js/android/build/generated/source/buildConfig/debug/com/daily/reactlibrary/BuildConfig.java
+new file mode 100644
+index 0000000..06207c8
+--- /dev/null
++++ b/node_modules/@daily-co/react-native-daily-js/android/build/generated/source/buildConfig/debug/com/daily/reactlibrary/BuildConfig.java
+@@ -0,0 +1,10 @@
++/**
++ * Automatically generated file. DO NOT MODIFY
++ */
++package com.daily.reactlibrary;
++
++public final class BuildConfig {
++  public static final boolean DEBUG = Boolean.parseBoolean("true");
++  public static final String LIBRARY_PACKAGE_NAME = "com.daily.reactlibrary";
++  public static final String BUILD_TYPE = "debug";
++}
+diff --git a/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/aapt_friendly_merged_manifests/debug/processDebugManifest/aapt/AndroidManifest.xml b/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/aapt_friendly_merged_manifests/debug/processDebugManifest/aapt/AndroidManifest.xml
+new file mode 100644
+index 0000000..f87c0e6
+--- /dev/null
++++ b/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/aapt_friendly_merged_manifests/debug/processDebugManifest/aapt/AndroidManifest.xml
+@@ -0,0 +1,7 @@
++<?xml version="1.0" encoding="utf-8"?>
++<manifest xmlns:android="http://schemas.android.com/apk/res/android"
++    package="com.daily.reactlibrary" >
++
++    <uses-sdk android:minSdkVersion="24" />
++
++</manifest>
+\ No newline at end of file
+diff --git a/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/aapt_friendly_merged_manifests/debug/processDebugManifest/aapt/output-metadata.json b/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/aapt_friendly_merged_manifests/debug/processDebugManifest/aapt/output-metadata.json
+new file mode 100644
+index 0000000..98a93ff
+--- /dev/null
++++ b/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/aapt_friendly_merged_manifests/debug/processDebugManifest/aapt/output-metadata.json
+@@ -0,0 +1,18 @@
++{
++  "version": 3,
++  "artifactType": {
++    "type": "AAPT_FRIENDLY_MERGED_MANIFESTS",
++    "kind": "Directory"
++  },
++  "applicationId": "com.daily.reactlibrary",
++  "variantName": "debug",
++  "elements": [
++    {
++      "type": "SINGLE",
++      "filters": [],
++      "attributes": [],
++      "outputFile": "AndroidManifest.xml"
++    }
++  ],
++  "elementType": "File"
++}
+\ No newline at end of file
+diff --git a/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/aar_metadata/debug/writeDebugAarMetadata/aar-metadata.properties b/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/aar_metadata/debug/writeDebugAarMetadata/aar-metadata.properties
+new file mode 100644
+index 0000000..1211b1e
+--- /dev/null
++++ b/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/aar_metadata/debug/writeDebugAarMetadata/aar-metadata.properties
+@@ -0,0 +1,6 @@
++aarFormatVersion=1.0
++aarMetadataVersion=1.0
++minCompileSdk=1
++minCompileSdkExtension=0
++minAndroidGradlePluginVersion=1.0.0
++coreLibraryDesugaringEnabled=false
+diff --git a/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/annotation_processor_list/debug/javaPreCompileDebug/annotationProcessors.json b/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/annotation_processor_list/debug/javaPreCompileDebug/annotationProcessors.json
+new file mode 100644
+index 0000000..9e26dfe
+--- /dev/null
++++ b/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/annotation_processor_list/debug/javaPreCompileDebug/annotationProcessors.json
+@@ -0,0 +1 @@
++{}
+\ No newline at end of file
+diff --git a/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/compile_library_classes_jar/debug/bundleLibCompileToJarDebug/classes.jar b/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/compile_library_classes_jar/debug/bundleLibCompileToJarDebug/classes.jar
+new file mode 100644
+index 0000000..c392811
+Binary files /dev/null and b/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/compile_library_classes_jar/debug/bundleLibCompileToJarDebug/classes.jar differ
+diff --git a/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/compile_r_class_jar/debug/generateDebugRFile/R.jar b/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/compile_r_class_jar/debug/generateDebugRFile/R.jar
+new file mode 100644
+index 0000000..d89ce09
+Binary files /dev/null and b/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/compile_r_class_jar/debug/generateDebugRFile/R.jar differ
+diff --git a/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/compile_symbol_list/debug/generateDebugRFile/R.txt b/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/compile_symbol_list/debug/generateDebugRFile/R.txt
+new file mode 100644
+index 0000000..b931681
+--- /dev/null
++++ b/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/compile_symbol_list/debug/generateDebugRFile/R.txt
+@@ -0,0 +1 @@
++int drawable ic_daily_videocam_24dp 0x0
+diff --git a/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/compiled_local_resources/debug/compileDebugLibraryResources/out/drawable_ic_daily_videocam_24dp.xml.flat b/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/compiled_local_resources/debug/compileDebugLibraryResources/out/drawable_ic_daily_videocam_24dp.xml.flat
+new file mode 100644
+index 0000000..21dfee4
+Binary files /dev/null and b/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/compiled_local_resources/debug/compileDebugLibraryResources/out/drawable_ic_daily_videocam_24dp.xml.flat differ
+diff --git a/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/incremental/debug/packageDebugResources/compile-file-map.properties b/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/incremental/debug/packageDebugResources/compile-file-map.properties
+new file mode 100644
+index 0000000..9f6be56
+--- /dev/null
++++ b/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/incremental/debug/packageDebugResources/compile-file-map.properties
+@@ -0,0 +1,2 @@
++#Fri May 22 23:07:14 PKT 2026
++com.daily.reactlibrary.daily-co_react-native-daily-js-main-6\:/drawable/ic_daily_videocam_24dp.xml=/Users/app/Desktop/voxo/android-project-expo/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/packaged_res/debug/packageDebugResources/drawable/ic_daily_videocam_24dp.xml
+diff --git a/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/incremental/debug/packageDebugResources/merger.xml b/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/incremental/debug/packageDebugResources/merger.xml
+new file mode 100644
+index 0000000..8bd1e6f
+--- /dev/null
++++ b/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/incremental/debug/packageDebugResources/merger.xml
+@@ -0,0 +1,2 @@
++<?xml version="1.0" encoding="utf-8"?>
++<merger version="3"><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="main$Generated" generated="true" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/app/Desktop/voxo/android-project-expo/node_modules/@daily-co/react-native-daily-js/android/src/main/res"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="main" generated-set="main$Generated" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/app/Desktop/voxo/android-project-expo/node_modules/@daily-co/react-native-daily-js/android/src/main/res"><file name="ic_daily_videocam_24dp" path="/Users/app/Desktop/voxo/android-project-expo/node_modules/@daily-co/react-native-daily-js/android/src/main/res/drawable/ic_daily_videocam_24dp.xml" qualifiers="" type="drawable"/></source></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="debug$Generated" generated="true" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/app/Desktop/voxo/android-project-expo/node_modules/@daily-co/react-native-daily-js/android/src/debug/res"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="debug" generated-set="debug$Generated" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/app/Desktop/voxo/android-project-expo/node_modules/@daily-co/react-native-daily-js/android/src/debug/res"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="generated$Generated" generated="true" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/app/Desktop/voxo/android-project-expo/node_modules/@daily-co/react-native-daily-js/android/build/generated/res/resValues/debug"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="generated" generated-set="generated$Generated" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/app/Desktop/voxo/android-project-expo/node_modules/@daily-co/react-native-daily-js/android/build/generated/res/resValues/debug"/></dataSet><mergedItems/></merger>
+\ No newline at end of file
+diff --git a/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/incremental/mergeDebugJniLibFolders/merger.xml b/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/incremental/mergeDebugJniLibFolders/merger.xml
+new file mode 100644
+index 0000000..c7b55e3
+--- /dev/null
++++ b/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/incremental/mergeDebugJniLibFolders/merger.xml
+@@ -0,0 +1,2 @@
++<?xml version="1.0" encoding="utf-8"?>
++<merger version="3"><dataSet config="main" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/app/Desktop/voxo/android-project-expo/node_modules/@daily-co/react-native-daily-js/android/src/main/jniLibs"/></dataSet><dataSet config="debug" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/app/Desktop/voxo/android-project-expo/node_modules/@daily-co/react-native-daily-js/android/src/debug/jniLibs"/></dataSet></merger>
+\ No newline at end of file
+diff --git a/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/incremental/mergeDebugShaders/merger.xml b/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/incremental/mergeDebugShaders/merger.xml
+new file mode 100644
+index 0000000..105bff1
+--- /dev/null
++++ b/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/incremental/mergeDebugShaders/merger.xml
+@@ -0,0 +1,2 @@
++<?xml version="1.0" encoding="utf-8"?>
++<merger version="3"><dataSet config="main" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/app/Desktop/voxo/android-project-expo/node_modules/@daily-co/react-native-daily-js/android/src/main/shaders"/></dataSet><dataSet config="debug" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/app/Desktop/voxo/android-project-expo/node_modules/@daily-co/react-native-daily-js/android/src/debug/shaders"/></dataSet></merger>
+\ No newline at end of file
+diff --git a/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/incremental/packageDebugAssets/merger.xml b/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/incremental/packageDebugAssets/merger.xml
+new file mode 100644
+index 0000000..6540ac4
+--- /dev/null
++++ b/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/incremental/packageDebugAssets/merger.xml
+@@ -0,0 +1,2 @@
++<?xml version="1.0" encoding="utf-8"?>
++<merger version="3"><dataSet config="main" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/app/Desktop/voxo/android-project-expo/node_modules/@daily-co/react-native-daily-js/android/src/main/assets"/></dataSet><dataSet config="debug" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/app/Desktop/voxo/android-project-expo/node_modules/@daily-co/react-native-daily-js/android/src/debug/assets"/></dataSet><dataSet config="generated" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/app/Desktop/voxo/android-project-expo/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/shader_assets/debug/compileDebugShaders/out"/></dataSet></merger>
+\ No newline at end of file
+diff --git a/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/daily/reactlibrary/BuildConfig.class b/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/daily/reactlibrary/BuildConfig.class
+new file mode 100644
+index 0000000..4568211
+Binary files /dev/null and b/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/daily/reactlibrary/BuildConfig.class differ
+diff --git a/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/daily/reactlibrary/DailyNativeUtils$1.class b/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/daily/reactlibrary/DailyNativeUtils$1.class
+new file mode 100644
+index 0000000..cd7bc1a
+Binary files /dev/null and b/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/daily/reactlibrary/DailyNativeUtils$1.class differ
+diff --git a/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/daily/reactlibrary/DailyNativeUtils.class b/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/daily/reactlibrary/DailyNativeUtils.class
+new file mode 100644
+index 0000000..fbabd5a
+Binary files /dev/null and b/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/daily/reactlibrary/DailyNativeUtils.class differ
+diff --git a/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/daily/reactlibrary/DailyNativeUtilsPackage.class b/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/daily/reactlibrary/DailyNativeUtilsPackage.class
+new file mode 100644
+index 0000000..8cbbbcc
+Binary files /dev/null and b/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/daily/reactlibrary/DailyNativeUtilsPackage.class differ
+diff --git a/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/daily/reactlibrary/DailyOngoingMeetingForegroundService.class b/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/daily/reactlibrary/DailyOngoingMeetingForegroundService.class
+new file mode 100644
+index 0000000..9f6838d
+Binary files /dev/null and b/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/javac/debug/compileDebugJavaWithJavac/classes/com/daily/reactlibrary/DailyOngoingMeetingForegroundService.class differ
+diff --git a/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/local_only_symbol_list/debug/parseDebugLocalResources/R-def.txt b/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/local_only_symbol_list/debug/parseDebugLocalResources/R-def.txt
+new file mode 100644
+index 0000000..6a89439
+--- /dev/null
++++ b/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/local_only_symbol_list/debug/parseDebugLocalResources/R-def.txt
+@@ -0,0 +1,3 @@
++R_DEF: Internal format may change without notice
++local
++drawable ic_daily_videocam_24dp
+diff --git a/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/manifest_merge_blame_file/debug/processDebugManifest/manifest-merger-blame-debug-report.txt b/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/manifest_merge_blame_file/debug/processDebugManifest/manifest-merger-blame-debug-report.txt
+new file mode 100644
+index 0000000..5e31c6f
+--- /dev/null
++++ b/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/manifest_merge_blame_file/debug/processDebugManifest/manifest-merger-blame-debug-report.txt
+@@ -0,0 +1,7 @@
++1<?xml version="1.0" encoding="utf-8"?>
++2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
++3    package="com.daily.reactlibrary" >
++4
++5    <uses-sdk android:minSdkVersion="24" />
++6
++7</manifest>
+diff --git a/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml b/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml
+new file mode 100644
+index 0000000..f87c0e6
+--- /dev/null
++++ b/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml
+@@ -0,0 +1,7 @@
++<?xml version="1.0" encoding="utf-8"?>
++<manifest xmlns:android="http://schemas.android.com/apk/res/android"
++    package="com.daily.reactlibrary" >
++
++    <uses-sdk android:minSdkVersion="24" />
++
++</manifest>
+\ No newline at end of file
+diff --git a/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/navigation_json/debug/extractDeepLinksDebug/navigation.json b/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/navigation_json/debug/extractDeepLinksDebug/navigation.json
+new file mode 100644
+index 0000000..0637a08
+--- /dev/null
++++ b/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/navigation_json/debug/extractDeepLinksDebug/navigation.json
+@@ -0,0 +1 @@
++[]
+\ No newline at end of file
+diff --git a/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/nested_resources_validation_report/debug/generateDebugResources/nestedResourcesValidationReport.txt b/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/nested_resources_validation_report/debug/generateDebugResources/nestedResourcesValidationReport.txt
+new file mode 100644
+index 0000000..08f4ebe
+--- /dev/null
++++ b/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/nested_resources_validation_report/debug/generateDebugResources/nestedResourcesValidationReport.txt
+@@ -0,0 +1 @@
++0 Warning/Error
+\ No newline at end of file
+diff --git a/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/packaged_res/debug/packageDebugResources/drawable/ic_daily_videocam_24dp.xml b/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/packaged_res/debug/packageDebugResources/drawable/ic_daily_videocam_24dp.xml
+new file mode 100644
+index 0000000..e23eac8
+--- /dev/null
++++ b/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/packaged_res/debug/packageDebugResources/drawable/ic_daily_videocam_24dp.xml
+@@ -0,0 +1,9 @@
++<vector xmlns:android="http://schemas.android.com/apk/res/android"
++        android:width="24dp"
++        android:height="24dp"
++        android:viewportWidth="24.0"
++        android:viewportHeight="24.0">
++    <path
++        android:fillColor="#FF000000"
++        android:pathData="M17,10.5V7c0,-0.55 -0.45,-1 -1,-1H4c-0.55,0 -1,0.45 -1,1v10c0,0.55 0.45,1 1,1h12c0.55,0 1,-0.45 1,-1v-3.5l4,4v-11l-4,4z"/>
++</vector>
+diff --git a/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/runtime_library_classes_jar/debug/bundleLibRuntimeToJarDebug/classes.jar b/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/runtime_library_classes_jar/debug/bundleLibRuntimeToJarDebug/classes.jar
+new file mode 100644
+index 0000000..d8182f5
+Binary files /dev/null and b/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/runtime_library_classes_jar/debug/bundleLibRuntimeToJarDebug/classes.jar differ
+diff --git a/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/symbol_list_with_package_name/debug/generateDebugRFile/package-aware-r.txt b/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/symbol_list_with_package_name/debug/generateDebugRFile/package-aware-r.txt
+new file mode 100644
+index 0000000..9dee578
+--- /dev/null
++++ b/node_modules/@daily-co/react-native-daily-js/android/build/intermediates/symbol_list_with_package_name/debug/generateDebugRFile/package-aware-r.txt
+@@ -0,0 +1,2 @@
++com.daily.reactlibrary
++drawable ic_daily_videocam_24dp
+diff --git a/node_modules/@daily-co/react-native-daily-js/android/build/outputs/logs/manifest-merger-debug-report.txt b/node_modules/@daily-co/react-native-daily-js/android/build/outputs/logs/manifest-merger-debug-report.txt
+new file mode 100644
+index 0000000..2f7922a
+--- /dev/null
++++ b/node_modules/@daily-co/react-native-daily-js/android/build/outputs/logs/manifest-merger-debug-report.txt
+@@ -0,0 +1,16 @@
++-- Merging decision tree log ---
++manifest
++ADDED from /Users/app/Desktop/voxo/android-project-expo/node_modules/@daily-co/react-native-daily-js/android/src/main/AndroidManifest.xml:1:1-2:12
++INJECTED from /Users/app/Desktop/voxo/android-project-expo/node_modules/@daily-co/react-native-daily-js/android/src/main/AndroidManifest.xml:1:1-2:12
++	package
++		INJECTED from /Users/app/Desktop/voxo/android-project-expo/node_modules/@daily-co/react-native-daily-js/android/src/main/AndroidManifest.xml
++	xmlns:android
++		ADDED from /Users/app/Desktop/voxo/android-project-expo/node_modules/@daily-co/react-native-daily-js/android/src/main/AndroidManifest.xml:1:11-69
++uses-sdk
++INJECTED from /Users/app/Desktop/voxo/android-project-expo/node_modules/@daily-co/react-native-daily-js/android/src/main/AndroidManifest.xml reason: use-sdk injection requested
++INJECTED from /Users/app/Desktop/voxo/android-project-expo/node_modules/@daily-co/react-native-daily-js/android/src/main/AndroidManifest.xml
++INJECTED from /Users/app/Desktop/voxo/android-project-expo/node_modules/@daily-co/react-native-daily-js/android/src/main/AndroidManifest.xml
++	android:targetSdkVersion
++		INJECTED from /Users/app/Desktop/voxo/android-project-expo/node_modules/@daily-co/react-native-daily-js/android/src/main/AndroidManifest.xml
++	android:minSdkVersion
++		INJECTED from /Users/app/Desktop/voxo/android-project-expo/node_modules/@daily-co/react-native-daily-js/android/src/main/AndroidManifest.xml
+diff --git a/node_modules/@daily-co/react-native-daily-js/android/build/tmp/compileDebugJavaWithJavac/previous-compilation-data.bin b/node_modules/@daily-co/react-native-daily-js/android/build/tmp/compileDebugJavaWithJavac/previous-compilation-data.bin
+new file mode 100644
+index 0000000..7d0a0ca
+Binary files /dev/null and b/node_modules/@daily-co/react-native-daily-js/android/build/tmp/compileDebugJavaWithJavac/previous-compilation-data.bin differ
+diff --git a/node_modules/@daily-co/react-native-daily-js/android/src/main/java/com/daily/reactlibrary/DailyOngoingMeetingForegroundService.java b/node_modules/@daily-co/react-native-daily-js/android/src/main/java/com/daily/reactlibrary/DailyOngoingMeetingForegroundService.java
+index 5330bd2..1d9ed71 100644
+--- a/node_modules/@daily-co/react-native-daily-js/android/src/main/java/com/daily/reactlibrary/DailyOngoingMeetingForegroundService.java
++++ b/node_modules/@daily-co/react-native-daily-js/android/src/main/java/com/daily/reactlibrary/DailyOngoingMeetingForegroundService.java
+@@ -26,6 +26,7 @@ public class DailyOngoingMeetingForegroundService extends Service {
+     private static final String EXTRA_TITLE = "title";
+     private static final String EXTRA_SUBTITLE = "subtitle";
+     private static final String EXTRA_ICON_NAME = "icon_name";
++    private static final String EXTRA_ACTIVITY_CLASS = "activity_class_name";
+ 
+     public static Class<? extends Activity> activityClassToOpenFromNotification;
+ 
+@@ -38,9 +39,35 @@ public class DailyOngoingMeetingForegroundService extends Service {
+         intent.putExtra(EXTRA_TITLE, title);
+         intent.putExtra(EXTRA_SUBTITLE, subtitle);
+         intent.putExtra(EXTRA_ICON_NAME, iconName);
++        if (activityClass != null) {
++            intent.putExtra(EXTRA_ACTIVITY_CLASS, activityClass.getName());
++        }
+         ContextCompat.startForegroundService(context, intent);
+     }
+ 
++    @SuppressWarnings("unchecked")
++    private Class<? extends Activity> resolveActivityClass(Intent intent) {
++        if (activityClassToOpenFromNotification != null) {
++            return activityClassToOpenFromNotification;
++        }
++        String className = intent != null ? intent.getStringExtra(EXTRA_ACTIVITY_CLASS) : null;
++        if (className != null) {
++            try {
++                activityClassToOpenFromNotification =
++                        (Class<? extends Activity>) Class.forName(className);
++                return activityClassToOpenFromNotification;
++            } catch (ClassNotFoundException ignored) {
++            }
++        }
++        try {
++            activityClassToOpenFromNotification =
++                    (Class<? extends Activity>) Class.forName(getPackageName() + ".MainActivity");
++            return activityClassToOpenFromNotification;
++        } catch (ClassNotFoundException ignored) {
++        }
++        return null;
++    }
++
+     public static void stop(Context context) {
+         Intent intent = new Intent(context, DailyOngoingMeetingForegroundService.class);
+         context.stopService(intent);
+@@ -70,9 +97,23 @@ public class DailyOngoingMeetingForegroundService extends Service {
+                 iconName,
+                 "drawable",
+                 getPackageName());
++        if (icon == 0) {
++            icon = getResources().getIdentifier("ic_daily_videocam_24dp", "drawable", getPackageName());
++        }
+ 
+-        Intent notificationIntent = new Intent(this, activityClassToOpenFromNotification);
+-        PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE);
++        Class<? extends Activity> activityClass = resolveActivityClass(intent);
++        PendingIntent pendingIntent;
++        if (activityClass != null) {
++            Intent notificationIntent = new Intent(this, activityClass);
++            pendingIntent = PendingIntent.getActivity(this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE);
++        } else {
++            Intent launchIntent = getPackageManager().getLaunchIntentForPackage(getPackageName());
++            if (launchIntent == null) {
++                stopSelf();
++                return START_NOT_STICKY;
++            }
++            pendingIntent = PendingIntent.getActivity(this, 0, launchIntent, PendingIntent.FLAG_IMMUTABLE);
++        }
+ 
+         Notification notification = new NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
+                 .setContentTitle(title)
+diff --git a/node_modules/@daily-co/react-native-daily-js/dist/index.js b/node_modules/@daily-co/react-native-daily-js/dist/index.js
+index 4d8afc1..0cebb0f 100644
+--- a/node_modules/@daily-co/react-native-daily-js/dist/index.js
++++ b/node_modules/@daily-co/react-native-daily-js/dist/index.js
+@@ -92,6 +92,10 @@ function setupEventListeners() {
+ function setupGlobals() {
+     // WebRTC APIs + global `window` object
+     (0, react_native_webrtc_1.registerGlobals)();
++    // React Native Hermes often has no `global.window`; Daily assumes it exists.
++    if (global.window == null) {
++        global.window = global;
++    }
+     // A shim to prevent errors in call machine bundle (not ideal)
+     global.window.addEventListener = function () { };
+     global.window.removeEventListener = function () { };
+@@ -108,13 +112,18 @@ function setupGlobals() {
+     // the "voip" background mode capability, which keeps the app running normally
+     // during a call.
+     if (react_native_1.Platform.OS === 'android') {
+-        global.clearTimeout = react_native_background_timer_1.default.clearTimeout.bind(react_native_background_timer_1.default);
+-        global.clearInterval = react_native_background_timer_1.default.clearInterval.bind(react_native_background_timer_1.default);
+-        global.setInterval = react_native_background_timer_1.default.setInterval.bind(react_native_background_timer_1.default);
+-        global.setTimeout = function (fn, ms) {
+-            if (ms === void 0) { ms = 0; }
+-            return react_native_background_timer_1.default.setTimeout(fn, ms);
+-        };
++        // VOXO: Only swap timers when background-timer resolved with a usable default.
++        // Otherwise `null.setTimeout` / `undefined.setTimeout` crashes Hermes (LogBox cascades).
++        var __dailyAndroidTimer = react_native_background_timer_1.default;
++        if (__dailyAndroidTimer != null && typeof __dailyAndroidTimer.setTimeout === 'function') {
++            global.clearTimeout = __dailyAndroidTimer.clearTimeout.bind(__dailyAndroidTimer);
++            global.clearInterval = __dailyAndroidTimer.clearInterval.bind(__dailyAndroidTimer);
++            global.setInterval = __dailyAndroidTimer.setInterval.bind(__dailyAndroidTimer);
++            global.setTimeout = function (fn, ms) {
++                if (ms === void 0) { ms = 0; }
++                return __dailyAndroidTimer.setTimeout(fn, ms);
++            };
++        }
+     }
+     global.DailyNativeUtils = {
+         //With React Native new architecture the Native modules are lazily initialized

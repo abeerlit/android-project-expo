@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta
+    content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
+    name="viewport"
+  />
+  <title>RichTextEditor</title>
+  <style>
+      body {
+          font-family: Inter, sans-serif;
+          background: {{theme-background}};
+          color: {{theme-color}};
+      }
+  </style>
+</head>
+<style>
+    body {
+        margin: 0;
+        padding: 0;
+    }
+
+    /*
+     * Flex top-alignment: avoids Android WebView vertically “centering” an empty
+     * full-height ProseMirror so the placeholder and first line of text share
+     * the same vertical position (matches iOS WKWebView behavior).
+     */
+    #root > div:nth-of-type(1) {
+        height: 100%;
+        position: absolute;
+        width: 100%;
+        top: 0;
+        bottom: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        justify-content: flex-start;
+    }
+
+    /* TipTap EditorContent wrapper (when present) — pass min-height for nested scroll */
+    #root .tiptap {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    #root div .ProseMirror {
+        flex: 1 1 auto;
+        min-height: 0;
+        width: 100%;
+        overflow-y: auto;
+        overflow-x: hidden;
+        box-sizing: border-box;
+        /* Extra top padding so placeholder / first line sit below the native toolbar */
+        padding: 12px 4px 8px 4px;
+        line-height: 1.45;
+        /* Explicit text flow start (Android WebView) */
+        text-align: start;
+    }
+
+    .ProseMirror:focus {
+        outline: none;
+    }
+
+    /* Keep first-line position stable when switching from placeholder to typed text */
+    .ProseMirror p {
+        margin: 0;
+        line-height: inherit;
+    }
+
+    .ProseMirror p:not(:last-child) {
+        margin-bottom: 0.35em;
+    }
+
+    /* Empty first paragraph: no extra offset vs placeholder ::before */
+    .ProseMirror p.is-editor-empty:first-child {
+        margin-top: 0;
+        margin-bottom: 0;
+    }
+
+    /*
+     * Reinforce TipTap placeholder (PlaceholderBridge uses float:left; height:0).
+     * Only for top-level <p> — inside <li><p> this float breaks list-marker + caret layout on WebView.
+     */
+    .ProseMirror > p.is-editor-empty:first-child::before {
+        float: left;
+        height: 0;
+        pointer-events: none;
+    }
+
+    /*
+     * Lists: reset UA margins/padding once, then a single padding-inline-start so we do not stack
+     * with default 40px + TipTap pl-5. Use outside markers so li > p (block) keeps caret on the
+     * same line as text next to the bullet (inside markers put the caret visually on a “second line”).
+     */
+    .ProseMirror ul,
+    .ProseMirror ol {
+        box-sizing: border-box;
+        min-width: 0;
+        align-self: stretch;
+        margin: 0.25em 0;
+        margin-left: 0;
+        padding: 0;
+        padding-inline-start: 1.25rem;
+        list-style-position: outside;
+    }
+
+    .ProseMirror ul {
+        list-style-type: disc;
+    }
+
+    .ProseMirror ol {
+        list-style-type: decimal;
+    }
+
+    .ProseMirror li {
+        margin: 0;
+        padding: 0;
+    }
+
+    .ProseMirror li:not(:last-child) {
+        margin-bottom: 0.2em;
+    }
+
+    .ProseMirror li p {
+        margin: 0;
+        line-height: inherit;
+    }
+
+    .ProseMirror li > ul,
+    .ProseMirror li > ol {
+        margin-top: 0.2em;
+        margin-bottom: 0;
+        padding-inline-start: 1rem;
+    }
+
+    /* First block: ul/ol had margin 0.25em top — pushes bullets below where empty <p> placeholder sat */
+    .ProseMirror > ul:first-child,
+    .ProseMirror > ol:first-child {
+        margin-top: 0;
+    }
+</style>
+<body>
+<div id="root"></div>
+<script src="./index.tsx" type="module"></script>
+</body>
+</html>

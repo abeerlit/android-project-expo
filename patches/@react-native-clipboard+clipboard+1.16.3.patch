@@ -1,0 +1,40 @@
+diff --git a/node_modules/@react-native-clipboard/clipboard/android/src/main/java/com/reactnativecommunity/clipboard/ClipboardModule.java b/node_modules/@react-native-clipboard/clipboard/android/src/main/java/com/reactnativecommunity/clipboard/ClipboardModule.java
+index b68b858..64251d6 100644
+--- a/node_modules/@react-native-clipboard/clipboard/android/src/main/java/com/reactnativecommunity/clipboard/ClipboardModule.java
++++ b/node_modules/@react-native-clipboard/clipboard/android/src/main/java/com/reactnativecommunity/clipboard/ClipboardModule.java
+@@ -186,11 +186,26 @@ public class ClipboardModule extends NativeClipboardModuleSpec {
+                   bitmap.compress(Bitmap.CompressFormat.WEBP, 100, outputStream);
+                   break;
+                 default:
++                  if (mimeType.startsWith("image/")) {
++                    bitmap.compress(Bitmap.CompressFormat.JPEG, 100, outputStream);
++                    break;
++                  }
++                  promise.resolve("");
+                   return;
+               }
+               byte[] byteArray = outputStream.toByteArray();
+               String encodedString = Base64.encodeToString(byteArray, Base64.DEFAULT);
+-              promise.resolve("data:" + mimeType + ";base64," + encodedString);
++              String outMime =
++                  mimeType.startsWith("image/") && !mimeType.equals(MIMETYPE_PNG)
++                      && !mimeType.equals(MIMETYPE_WEBP)
++                      && !mimeType.equals(MIMETYPE_HEIC)
++                      && !mimeType.equals(MIMETYPE_HEIF)
++                      && !mimeType.equals(MIMETYPE_JPEG)
++                      && !mimeType.equals(MIMETYPE_JPG)
++                      ? MIMETYPE_JPEG
++                      : mimeType;
++              promise.resolve("data:" + outMime + ";base64," + encodedString);
++              return;
+             } catch (IOException e) {
+               promise.reject(e);
+               e.printStackTrace();
+@@ -198,6 +213,7 @@ public class ClipboardModule extends NativeClipboardModuleSpec {
+           }
+         }
+       }
++      // Only when no data URL was resolved above (avoid double-resolve after success).
+       promise.resolve("");
+     }
+   }

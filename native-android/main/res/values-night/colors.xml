@@ -1,0 +1,7 @@
+<!-- android/app/src/main/res/values-night/colors.xml -->
+<resources>
+    <color name="background_bg_primary">#131316</color> <!-- Dark mode background color -->
+    <color name="primaryColor">#BB86FC</color> <!-- Primary theme color for dark mode -->
+    <color name="primaryDarkColor">#3700B3</color> <!-- Dark variant of primary color for dark mode -->
+    <color name="accentColor">#03DAC5</color> <!-- Accent color for dark mode -->
+</resources>

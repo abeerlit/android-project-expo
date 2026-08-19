@@ -1,0 +1,28 @@
+<resources>
+    <string name="app_name">VOXOConnect</string>
+    <string name="content_description_avatar">Incoming caller avatar</string>
+    <string name="content_description_incoming_call">Incoming Call</string>
+    <string name="content_description_ongoing_call">Ongoing voice call</string>
+    <string name="content_description_caller_number">Caller number</string>
+    <string name="content_description_caller_name">Caller name</string>
+    <string name="held_call_caller_name">Caller name</string>
+    <string name="held_call_status">On Hold</string>
+    <string name="button_text_accept_button">Accept</string>
+    <string name="button_text_decline_button">Decline</string>
+    <string name="button_text_hang_up">Hang up</string>
+    <string name="button_text_unlock_button">Unlock</string>
+    <string name="button_text_hold_button">Hold</string>
+    <string name="button_text_swap_button">Swap</string>
+    <string name="button_text_end_accept_button">End &amp; Accept</string>
+    <string name="button_text_hold_accept_button">Hold &amp; Accept</string>
+    <string name="content_description_voxomobile_icon">Voxo Connect Icon</string>
+    <string name="content_description_accept_button">Accept Incoming Call</string>
+    <string name="content_description_accept_button_icon">Accept icon</string>
+    <string name="content_description_decline_button">Decline Incoming Call</string>
+    <string name="content_description_decline_button_icon">Decline icon</string>
+    <string name="content_description_unlock_button">Unlock</string>
+    <string name="content_description_unlock_button_icon">Unlock icon</string>
+    <string name="content_description_hold_button">Resume call</string>
+    <string name="content_description_hold_button_icon">Hold icon</string>
+    <string name="tap_to_open_app">Tap to open app</string>
+</resources>
