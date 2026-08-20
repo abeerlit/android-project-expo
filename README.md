@@ -47,4 +47,8 @@ After changing flags, run `npm run android:setup:clean`.
 
 ## White-label
 
+`voxo-manager` is used for white-labelling the projects. Each tenant folder is a branded
+app (name, package, Firebase, icons) that gets synced into the iOS and Android Expo apps
+so one codebase can ship multiple apps.
+
 Use [`voxo-manager`](../voxo-manager/): `voxo android build <tenant>`, `voxo android submit <tenant>`.
