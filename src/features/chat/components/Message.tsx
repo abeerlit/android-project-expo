@@ -13,7 +13,6 @@ import {
   type ImageSourcePropType,
   type ImageStyle,
   Platform,
-  StatusBar,
   StyleSheet,
   type StyleProp,
   TouchableOpacity,
@@ -22,10 +21,6 @@ import {
 import FastImage from "@d11/react-native-fast-image";
 import Clipboard from "@react-native-clipboard/clipboard";
 import { toast } from "@backpackapp-io/react-native-toast";
-import {
-  isAndroidClipboardImageSupported,
-  setAndroidClipboardImageFromFile
-} from "shared/utils/voxo-clipboard-android.ts";
 import ImageModal from "react-native-image-modal";
 import { CachedChatImage } from "features/chat/components/CachedChatImage.tsx";
 import ReactNativeBlobUtil from "react-native-blob-util";
@@ -46,6 +41,7 @@ import { Parser } from "features/chat/components/Parser.tsx";
 import { formatAdminEventMessage } from "features/chat/utils/formatAdminEventMessage.ts";
 import { MessageReactions } from "features/chat/components/MessageReactions.tsx";
 import { MessageOptionsDrawer } from "./drawers/MessageOptionsDrawer.tsx";
+import { ImageModalHeader } from "shared/components/ImageModalHeader.tsx";
 
 // Utils & Constants
 import {
@@ -65,7 +61,6 @@ import {
   getDateText,
   getFileSize
 } from "shared/utils/utils.ts";
-import { CameraRoll } from "@react-native-camera-roll/camera-roll";
 import { useRichEditor } from "features/chat/rich-editor/context/RichEditorContext.ts";
 import { useNavigation } from "@react-navigation/core";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -324,122 +319,6 @@ const isInvalidDocumentContentType = (contentType: string): boolean => {
   );
 };
 
-// Helper functions for image operations
-const ANDROID_CLIPBOARD_IMAGE_PATH = `${ReactNativeBlobUtil.fs.dirs.CacheDir}/voxo_clipboard_image.jpg`;
-
-const copyImageToClipboard = async (imagePath: string, authToken?: string) => {
-  const localFilePath =
-    Platform.OS === "android"
-      ? ANDROID_CLIPBOARD_IMAGE_PATH
-      : `${ReactNativeBlobUtil.fs.dirs.CacheDir}/clipboard_image_${Date.now()}.jpg`;
-  try {
-    const headers = buildAuthHeaders(authToken);
-
-    await ReactNativeBlobUtil.config({
-      fileCache: true,
-      path: localFilePath
-    }).fetch("GET", imagePath, headers);
-
-    if (Platform.OS === "android") {
-      if (!isAndroidClipboardImageSupported()) {
-        toast.error("Image copy is not available on this device");
-        return;
-      }
-      // Clipboard holds a content URI to this file — keep it until the next copy.
-      await setAndroidClipboardImageFromFile(localFilePath);
-    } else {
-      const base64String = await ReactNativeBlobUtil.fs.readFile(
-        localFilePath,
-        "base64"
-      );
-      Clipboard.setImage(base64String);
-      try {
-        await ReactNativeBlobUtil.fs.unlink(localFilePath);
-      } catch {
-        // Best-effort cleanup
-      }
-    }
-
-    toast.success("Image copied to clipboard!");
-  } catch (error) {
-    console.error("Error copying image to clipboard:", error);
-    toast.error("Failed to copy image to clipboard");
-  }
-};
-
-const saveImageToCameraRoll = async (imageUrl: string, authToken?: string) => {
-  try {
-    const localFilePath = `${ReactNativeBlobUtil.fs.dirs.CacheDir}/tempImage.jpg`;
-    const headers = buildAuthHeaders(authToken);
-    await ReactNativeBlobUtil.config({
-      fileCache: true,
-      path: localFilePath
-    }).fetch("GET", imageUrl, headers);
-
-    await CameraRoll.saveToCameraRoll(localFilePath, "photo");
-    toast.success("Image saved to camera roll!");
-  } catch (e) {
-    console.error(e);
-    toast.error("Failed to save image to camera roll");
-  }
-};
-
-// Render header for image modal
-const renderImageHeader = (
-  onClose: () => void,
-  imageUrl: string,
-  authToken?: string
-) => {
-  return (
-    <View
-      style={{
-        marginTop: padding.lg,
-        marginHorizontal: padding.md,
-        display: "flex",
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between"
-      }}
-    >
-      <View style={styles.imageModalHeaderLeftRow}>
-        <TouchableOpacity
-          accessibilityRole="button"
-          style={[styles.imageModalHeaderTapTarget, styles.imageModalHeaderIconBox]}
-          onPress={() => {
-            onClose();
-            void saveImageToCameraRoll(imageUrl, authToken);
-          }}
-        >
-          <Icon name="download-cloud-02" size={25} color="white" />
-        </TouchableOpacity>
-        <TouchableOpacity
-          accessibilityRole="button"
-          style={[styles.imageModalHeaderTapTarget, styles.imageModalHeaderIconBox]}
-          onPress={() => {
-            onClose();
-            void copyImageToClipboard(imageUrl, authToken);
-          }}
-        >
-          <Icon name="copy-01" size={24} color="white" />
-        </TouchableOpacity>
-      </View>
-      <TouchableOpacity
-        accessibilityRole="button"
-        style={[styles.imageModalHeaderTapTarget, styles.imageModalHeaderIconBox]}
-        onPress={onClose}
-      >
-        <Text
-          size={fontSize["2xl"]}
-          weight={"bold"}
-          style={styles.crossIconImage}
-        >
-          ×
-        </Text>
-      </TouchableOpacity>
-    </View>
-  );
-};
-
 // Memoized message type components
 const TextMessage = memo(({ message }: { message: UserMessage }) => {
   const isAdminMessage =
@@ -636,9 +515,13 @@ const MultipleFileMessage = memo(
                 source={{ uri: imageUri }}
                 modalImageStyle={{ backgroundColor: "black" }}
                 modalImageResizeMode="contain"
-                renderHeader={(onClose) =>
-                  renderImageHeader(onClose, imageUri, authToken)
-                }
+                renderHeader={(onClose) => (
+                  <ImageModalHeader
+                    onClose={onClose}
+                    imageUrl={imageUri}
+                    authToken={authToken}
+                  />
+                )}
                 renderImageComponent={(params) =>
                   renderCachedChatImageModal({
                     params,
@@ -820,9 +703,13 @@ const FileMessage = memo(
             source={{ uri: imagePreviewUri }}
             modalImageStyle={{ backgroundColor: "black" }}
             modalImageResizeMode="contain"
-            renderHeader={(onClose) =>
-              renderImageHeader(onClose, imagePreviewUri, authToken)
-            }
+            renderHeader={(onClose) => (
+              <ImageModalHeader
+                onClose={onClose}
+                imageUrl={imagePreviewUri}
+                authToken={authToken}
+              />
+            )}
             renderImageComponent={(params) =>
               renderCachedChatImageModal({
                 params,
@@ -1411,7 +1298,7 @@ const MessageComponent: React.FC<MessageProps> = ({
         editor={editor}
         isInThread={isInThread}
       />,
-      0.4
+      0.5
     );
   };
 
@@ -1695,29 +1582,6 @@ const styles = StyleSheet.create({
   },
   joinButtonText: {
     textAlign: "center"
-  },
-
-  // Image modal header
-  crossIconImage: {
-    color: "white",
-    textAlign: "center",
-    lineHeight: fontSize["2xl"] + 4
-  },
-  imageModalHeaderLeftRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: padding.md
-  },
-  imageModalHeaderTapTarget: {
-    width: 40,
-    height: 40,
-    alignItems: "center",
-    justifyContent: "center"
-  },
-  imageModalHeaderIconBox: {
-    backgroundColor: "#000000",
-    borderRadius: borderRadius.md,
-    overflow: "hidden"
   },
 
   // Thread Info Styles

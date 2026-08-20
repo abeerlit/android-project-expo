@@ -66,7 +66,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     owner: process.env.EXPO_OWNER ?? config.owner ?? "voxo",
     name: displayName,
     slug: easProjectSlug,
-    version: "2.0.73",
+    version: "2.0.76",
     orientation: "default",
     icon: iconPath,
     scheme: packageName,
@@ -79,7 +79,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     },
     android: {
       package: packageName,
-      versionCode: 161,
+      versionCode: 164,
       adaptiveIcon: {
         foregroundImage: iconPath,
         backgroundColor: splashBackground

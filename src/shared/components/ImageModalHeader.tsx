@@ -13,6 +13,8 @@ import {
   copyImageToClipboard,
   saveImageToCameraRoll
 } from "shared/utils/imageModalActions.ts";
+import { useDrawer } from "core/drawer/DrawerContext.tsx";
+import { ForwardImageDrawer } from "features/chat/components/drawers/ForwardImageDrawer.tsx";
 
 type ImageModalHeaderProps = {
   onClose: () => void;
@@ -25,11 +27,28 @@ export function ImageModalHeader({
   imageUrl,
   authToken
 }: ImageModalHeaderProps) {
+  const { openDrawer, closeDrawer } = useDrawer();
+
+  const openForwardDrawer = () => {
+    onClose();
+    setTimeout(() => {
+      openDrawer(
+        <ForwardImageDrawer
+          imageUrl={imageUrl}
+          authToken={authToken}
+          onClose={closeDrawer}
+        />,
+        0.9
+      );
+    }, 350);
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.leftRow}>
         <TouchableOpacity
           accessibilityRole="button"
+          accessibilityLabel="Save image"
           style={[styles.tapTarget, styles.iconBox]}
           onPress={() => {
             onClose();
@@ -40,6 +59,7 @@ export function ImageModalHeader({
         </TouchableOpacity>
         <TouchableOpacity
           accessibilityRole="button"
+          accessibilityLabel="Copy image"
           style={[styles.tapTarget, styles.iconBox]}
           onPress={() => {
             onClose();
@@ -48,9 +68,18 @@ export function ImageModalHeader({
         >
           <Icon name="copy-01" size={24} color="white" />
         </TouchableOpacity>
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel="Forward image"
+          style={[styles.tapTarget, styles.iconBox]}
+          onPress={openForwardDrawer}
+        >
+          <Icon name="share-01" size={24} color="white" />
+        </TouchableOpacity>
       </View>
       <TouchableOpacity
         accessibilityRole="button"
+        accessibilityLabel="Close"
         style={[styles.tapTarget, styles.iconBox]}
         onPress={onClose}
       >

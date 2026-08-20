@@ -1,6 +1,6 @@
 // React Imports
 import React from "react";
-import { View, TouchableOpacity, Platform, Alert } from "react-native";
+import { View, TouchableOpacity, Platform, Alert, ScrollView } from "react-native";
 import { useSelector } from "react-redux";
 import { useTheme } from "hooks/use-theme.ts";
 import { EditorBridge } from "@10play/tentap-editor";
@@ -18,6 +18,7 @@ import { useDrawer } from "core/drawer/DrawerContext.tsx";
 import { RichEditorContextType } from "features/chat/rich-editor/context/RichEditorContext.ts";
 import { toast } from "@backpackapp-io/react-native-toast";
 import { AddReactionDrawer } from "features/chat/components/drawers/AddReactionDrawer.tsx";
+import { ForwardImageDrawer } from "features/chat/components/drawers/ForwardImageDrawer.tsx";
 import Clipboard from "@react-native-clipboard/clipboard";
 import { isHtml } from "shared/utils/utils.ts";
 import { useNavigation } from "@react-navigation/core";
@@ -41,6 +42,9 @@ export const MessageOptionsDrawer: React.FC<MessageOptionsDrawerProps> = ({
   const theme = useTheme();
   const { closeDrawer, openDrawer } = useDrawer();
   const { user } = useSelector(({ userReducer }: State) => userReducer);
+  const accessToken = useSelector(
+    ({ authReducer }: State) => authReducer.accessToken
+  );
   const { reactionEvent, deleteUserMessage, currentChannel } =
     useSendbirdContext();
 
@@ -90,6 +94,24 @@ export const MessageOptionsDrawer: React.FC<MessageOptionsDrawerProps> = ({
     openDrawer(<AddReactionDrawer onEmojiSelect={handleEmojiReaction} />, 0.9);
   };
 
+  const handleForward = () => {
+    closeDrawer();
+    setTimeout(() => {
+      openDrawer(
+        <ForwardImageDrawer
+          message={message}
+          authToken={accessToken}
+          onClose={closeDrawer}
+        />,
+        0.9
+      );
+    }, 300);
+  };
+
+  const isAdminMessage =
+    message.messageType === "admin" ||
+    (typeof message.isAdminMessage === "function" && message.isAdminMessage());
+
   const menuOptions = [
     ...(!isInThread
       ? [
@@ -128,6 +150,9 @@ export const MessageOptionsDrawer: React.FC<MessageOptionsDrawerProps> = ({
                     .replace(/&nbsp;/g, " ")
                 );
                 toast.success("Message copied to clipboard!");
+              } else if (message.message) {
+                Clipboard.setString(message.message);
+                toast.success("Message copied to clipboard!");
               }
               closeDrawer();
               // Refocus editor after copy on Android to fix focus issue
@@ -141,6 +166,15 @@ export const MessageOptionsDrawer: React.FC<MessageOptionsDrawerProps> = ({
                 }, 500);
               }
             }
+          }
+        ]
+      : []),
+    ...(!isAdminMessage
+      ? [
+          {
+            icon: "share-01",
+            text: "Forward",
+            onPress: handleForward
           }
         ]
       : []),
@@ -180,7 +214,12 @@ export const MessageOptionsDrawer: React.FC<MessageOptionsDrawerProps> = ({
   ];
 
   return (
-    <View style={{ paddingHorizontal: padding.xl }}>
+    <ScrollView
+      style={{ flex: 1, paddingHorizontal: padding.xl }}
+      contentContainerStyle={{ paddingBottom: padding["3xl"] }}
+      showsVerticalScrollIndicator={false}
+      bounces={false}
+    >
       {/* Emoji Reactions Row */}
       <View
         style={{
@@ -269,6 +308,6 @@ export const MessageOptionsDrawer: React.FC<MessageOptionsDrawerProps> = ({
           </Text>
         </TouchableOpacity>
       ))}
-    </View>
+    </ScrollView>
   );
 };
