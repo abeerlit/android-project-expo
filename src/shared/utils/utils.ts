@@ -113,9 +113,27 @@ export const formatRelativeTime = (time: string) => {
   return DateTime.fromISO(time).toFormat("ccc LLL d");
 };
 
+export const isValidFileSize = (
+  size: unknown
+): size is number =>
+  typeof size === "number" && Number.isFinite(size) && size >= 0;
+
 export const getFileSize = (size: number) => {
+  if (!isValidFileSize(size)) return "";
   return `${(size / (1024 * 1024)).toFixed(1)} MB`;
 };
+
+const IMAGE_FILENAME_RE =
+  /\.(png|jpe?g|gif|webp|heic|heif|bmp|tiff?)$/i;
+
+export function isImageAttachment(
+  mime?: string | null,
+  name?: string | null
+): boolean {
+  const type = (mime || "").toLowerCase();
+  if (type.startsWith("image/")) return true;
+  return IMAGE_FILENAME_RE.test((name || "").trim());
+}
 
 export const isHtml = (str: string) => {
   return /<[a-z][\s\S]*>/i.test(str);
