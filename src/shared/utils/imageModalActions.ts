@@ -149,6 +149,19 @@ export async function shareImageWithSystemSheet(
   }
 }
 
+async function persistAndroidClipboardFile(sourcePath: string): Promise<string> {
+  const ext = extensionFromUri(sourcePath);
+  const destPath = `${ReactNativeBlobUtil.fs.dirs.CacheDir}/voxo_clipboard_image${ext}`;
+  const src = stripFileScheme(sourcePath);
+  const dest = stripFileScheme(destPath);
+  if (src === dest) return dest;
+  if (await ReactNativeBlobUtil.fs.exists(dest)) {
+    await ReactNativeBlobUtil.fs.unlink(dest).catch(() => {});
+  }
+  await ReactNativeBlobUtil.fs.cp(src, dest);
+  return dest;
+}
+
 export async function copyImageToClipboard(
   imageUri: string,
   authToken?: string
@@ -161,14 +174,18 @@ export async function copyImageToClipboard(
         toast.error("Image copy is not available on this device");
         return;
       }
-      await setAndroidClipboardImageFromFile(path);
-    } else {
-      const base64String = await ReactNativeBlobUtil.fs.readFile(path, "base64");
-      Clipboard.setImage(base64String);
+      const clipboardPath = await persistAndroidClipboardFile(path);
+      await setAndroidClipboardImageFromFile(clipboardPath);
+      if (cleanup && stripFileScheme(path) !== clipboardPath) {
+        await ReactNativeBlobUtil.fs.unlink(path).catch(() => {});
+      }
+      toast.success("Image copied to clipboard!");
+      return;
     }
 
+    const base64String = await ReactNativeBlobUtil.fs.readFile(path, "base64");
+    Clipboard.setImage(base64String);
     toast.success("Image copied to clipboard!");
-
     if (cleanup) {
       await ReactNativeBlobUtil.fs.unlink(path).catch(() => {});
     }

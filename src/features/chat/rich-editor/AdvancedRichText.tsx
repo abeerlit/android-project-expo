@@ -10,6 +10,7 @@ import { Asset } from "react-native-image-picker";
 import { useTheme } from "hooks/use-theme.ts";
 import { padding, borderRadius, Theme } from "core/theme/theme.ts";
 import { useRichEditor } from "features/chat/rich-editor/context/RichEditorContext.ts";
+import { getEditableMessageHtml } from "features/chat/utils/chatMessageEdit.ts";
 import { CustomToolbar } from "features/chat/rich-editor/toolbar/CustomToolbar.tsx";
 import { LowerToolBar } from "features/chat/rich-editor/toolbar/LowerToolBar.tsx";
 
@@ -101,8 +102,9 @@ export const AdvancedRichText: React.FC<AdvancedRichTextProps> = ({
   const prevEditMessageRef = useRef(editMessage);
   useEffect(() => {
     if (editMessage) {
+      const editableHtml = getEditableMessageHtml(editMessage);
       // @ts-ignore - Editor type issue with setContent
-      editor.setContent(editMessage.message);
+      editor.setContent(editableHtml ?? "");
     } else if (prevEditMessageRef.current) {
       // Just exited edit mode - clear the input bar
       // @ts-ignore - Editor type issue with setContent

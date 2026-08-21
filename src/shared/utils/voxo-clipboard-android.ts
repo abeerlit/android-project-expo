@@ -1,7 +1,15 @@
 import { NativeModules, Platform } from "react-native";
 
+type AndroidClipboardImageFile = {
+  path: string;
+  mimeType: string;
+  fileName: string;
+  fileSize: number;
+};
+
 type VoxoClipboardNative = {
   setImageFromFilePath: (filePath: string) => Promise<string>;
+  copyClipboardImageToCache: () => Promise<AndroidClipboardImageFile>;
 };
 
 const nativeModule = NativeModules.VoxoClipboard as
@@ -23,3 +31,16 @@ export const setAndroidClipboardImageFromFile = async (
 
 export const isAndroidClipboardImageSupported = (): boolean =>
   Platform.OS === "android" && !!nativeModule?.setImageFromFilePath;
+
+export const getAndroidClipboardImageFile = async (): Promise<
+  AndroidClipboardImageFile | null
+> => {
+  if (Platform.OS !== "android" || !nativeModule?.copyClipboardImageToCache) {
+    return null;
+  }
+  try {
+    return await nativeModule.copyClipboardImageToCache();
+  } catch {
+    return null;
+  }
+};
