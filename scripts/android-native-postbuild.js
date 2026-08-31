@@ -67,9 +67,20 @@ function runPostPrebuildFixes(options = {}) {
     }
   }
 
+  try {
+    require("./patch-android-gradle-properties.js").patchAndroidGradleProperties();
+  } catch (e) {
+    console.warn("[android-native-postbuild] gradle.properties:", e.message);
+  }
+
+  try {
+    require("./patch-android-share-receiver.js").patchAndroidShareReceiver();
+  } catch (e) {
+    console.warn("[android-native-postbuild] share receiver:", e.message);
+  }
+
   if (telephony || isTruthy("EXPO_PUBLIC_NATIVE_NOTIFICATIONS") || meetingsNative) {
     try {
-      require("./patch-android-gradle-properties.js").patchAndroidGradleProperties();
       const deps = require("./patch-android-app-dependencies.js");
       deps.patchAndroidAppDependencies();
       deps.patchSupportExcludes();

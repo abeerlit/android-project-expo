@@ -2204,6 +2204,43 @@ export const SoftphoneProvider: React.FC<{ children: React.ReactNode }> = ({
         launchFromAnswerAndroidDeferRef.current.delete(callUuid);
       }
 
+      const incomingNeedsAnswer =
+        Platform.OS === "android" &&
+        (liveInfo?.state === CallState.INCOMING ||
+          smInfo?.state === CallState.INCOMING ||
+          existingCall?.state === CallState.INCOMING);
+
+      if (incomingNeedsAnswer) {
+        if (handledLaunchFromAnswerRef.current.has(callUuid)) return;
+        handledLaunchFromAnswerRef.current.add(callUuid);
+        const answerId =
+          smInfo?.id || liveInfo?.id || existingCall?.sessionId || callUuid;
+        const caller =
+          callerName ?? liveInfo?.remoteDisplayName ?? "Unknown Caller";
+        const number =
+          callerNumber ??
+          liveInfo?.remoteUri?.match(/^sip:(.+)@/)?.[1] ??
+          "Unknown";
+        void (async () => {
+          try {
+            const cup = sippyCupRef.current ?? (await ensureInitialized(false));
+            await cup.answerCall(answerId, caller);
+            const after = getLiveCallInfoForUuid(
+              callUuid,
+              getAndroidHeadlessEntry(callUuid)
+            );
+            promoteAnsweredCallToUi(callUuid, caller, number, after);
+          } catch (error) {
+            handledLaunchFromAnswerRef.current.delete(callUuid);
+            noteIncomingAnswerFailed(callUuid, error, {
+              origin: "processLaunchFromAnswer_answer",
+              answerId
+            });
+          }
+        })();
+        return;
+      }
+
       if (!hasLive) {
         if (Platform.OS === "android") {
           const deferPass = launchFromAnswerAndroidDeferRef.current.get(callUuid) ?? 0;
@@ -2262,7 +2299,8 @@ export const SoftphoneProvider: React.FC<{ children: React.ReactNode }> = ({
       navigateToInCallScreen,
       getAndroidHeadlessEntry,
       getLiveCallInfoForUuid,
-      promoteAnsweredCallToUi
+      promoteAnsweredCallToUi,
+      ensureInitialized
     ]
   );
 

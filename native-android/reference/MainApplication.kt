@@ -106,6 +106,7 @@ class MainApplication : Application(), ReactApplication {
         NotificationManager.IMPORTANCE_HIGH
       ).apply {
         description = "Incoming call notifications"
+        lockscreenVisibility = Notification.VISIBILITY_PUBLIC
         setSound(null, null)
         enableLights(true)
         lightColor = Color.BLUE
@@ -169,7 +170,7 @@ class MainApplication : Application(), ReactApplication {
   }
 
   companion object {
-    const val INCOMING_CALL_CHANNEL_ID = "VOXOCONNECT_INCOMING_CALLS_V2"
+    const val INCOMING_CALL_CHANNEL_ID = "VOXOCONNECT_INCOMING_CALLS_V3"
     const val ONGOING_CALL_CHANNEL_ID = "VOXOCONNECT_ONGOING_CALLS"
 
     var phoneAccountHandle: PhoneAccountHandle? = null

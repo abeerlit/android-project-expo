@@ -878,13 +878,30 @@ export class SessionManager {
     }
 
     const canonicalCallId = managedSession.id;
+    const currentState = managedSession.getCallInfo().state;
 
     console.log("🟡 [SessionManager] 📞 ManagedSession found:", {
       callId,
       canonicalCallId,
-      state: managedSession.getCallInfo().state,
+      state: currentState,
       timestamp: new Date().toISOString()
     });
+
+    if (
+      Platform.OS === "android" &&
+      (currentState === CallState.CONNECTING ||
+        currentState === CallState.CONNECTED)
+    ) {
+      console.log(
+        "🟡 [SessionManager] 📞 answerCall skipped — already",
+        currentState
+      );
+      return;
+    }
+
+    if (Platform.OS === "android") {
+      managedSession.setCallState(CallState.CONNECTING);
+    }
 
     const session = managedSession.getUnderlyingSession();
     if (!(session instanceof Invitation)) {

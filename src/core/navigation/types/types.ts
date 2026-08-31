@@ -33,6 +33,13 @@ export enum Routes {
   NewTextMessage = "NewTextMessage"
 }
 
+export type SharedMediaItem = {
+  uri: string;
+  mimeType: string;
+  fileName: string;
+  fileSize?: number | null;
+};
+
 export type ChatParams = {
   channelUrl?: string;
   conversationId?: number;

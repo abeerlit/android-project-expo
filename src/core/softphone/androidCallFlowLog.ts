@@ -1,6 +1,8 @@
 import * as Sentry from "@sentry/react-native";
 import { Platform, AppState } from "react-native";
 
+export const SAMSUNG_ISSUES_EVENT = "samsung issues";
+
 export const ANDROID_CALLFLOW_SUBSYSTEM = "VOXO_ANDROID_CALLFLOW";
 
 function safePayload(data?: Record<string, unknown>): string {
@@ -284,6 +286,7 @@ export function noteOutboundPlaceAttempt(data: {
 type AndroidIncomingRingPhase =
   | "notification_answer_tap"
   | "lock_screen_answer_no_pickup"
+  | "app_opens_no_pickup"
   | "voip_answer_failed"
   | "voip_answer_no_session"
   | "answer_never_connected"
@@ -292,6 +295,84 @@ type AndroidIncomingRingPhase =
   | "invite_timeout_ring_should_stop"
   | "ringing_never_stops_suspect"
   | "ring_teardown_requested";
+
+/** Phases that match the Mobility ticket: Accept opens the app but SIP never answers. */
+const SAMSUNG_ISSUE_ERROR_PHASES = new Set<AndroidIncomingRingPhase>([
+  "lock_screen_answer_no_pickup",
+  "app_opens_no_pickup",
+  "voip_answer_failed",
+  "voip_answer_no_session",
+  "answer_never_connected"
+]);
+
+const SAMSUNG_ISSUE_INFO_PHASES = new Set<AndroidIncomingRingPhase>([
+  "notification_answer_tap"
+]);
+
+const samsungAppOpensNoPickupSent = new Set<string>();
+
+type AndroidDeviceConstants = {
+  Brand?: string;
+  Manufacturer?: string;
+  Model?: string;
+  Release?: string;
+  Version?: number;
+};
+
+function androidDeviceContext(): Record<string, string | number | boolean | null> {
+  if (Platform.OS !== "android") {
+    return {};
+  }
+  const c = (Platform.constants ?? {}) as AndroidDeviceConstants;
+  const manufacturer = String(c.Manufacturer ?? "").toLowerCase();
+  const brand = String(c.Brand ?? "").toLowerCase();
+  const isSamsung =
+    manufacturer.includes("samsung") || brand.includes("samsung");
+  return {
+    manufacturer: c.Manufacturer ?? null,
+    brand: c.Brand ?? null,
+    model: c.Model ?? null,
+    androidRelease: c.Release ?? null,
+    androidSdk: typeof c.Version === "number" ? c.Version : null,
+    isSamsung
+  };
+}
+
+function captureSamsungIssue(
+  phase: AndroidIncomingRingPhase,
+  payload: Record<string, string | number | boolean | null>,
+  level: "error" | "info"
+): void {
+  const device = androidDeviceContext();
+  const merged = { ...device, ...payload, phase };
+  const isSamsung = device.isSamsung === true;
+
+  Sentry.withScope((scope) => {
+    scope.setLevel(level);
+    scope.setTag("feature", "android_incoming_answer_ring");
+    scope.setTag("incoming_ring_phase", phase);
+    scope.setTag("platform", "android");
+    scope.setTag("samsung_issues", "true");
+    scope.setTag("issue_family", "samsung_issues");
+    scope.setTag("is_samsung", isSamsung ? "true" : "false");
+    if (typeof device.manufacturer === "string") {
+      scope.setTag("device_manufacturer", device.manufacturer);
+    }
+    if (typeof device.brand === "string") {
+      scope.setTag("device_brand", device.brand);
+    }
+    if (typeof device.model === "string") {
+      scope.setTag("device_model", device.model);
+    }
+    if (typeof device.androidRelease === "string") {
+      scope.setTag("android_release", device.androidRelease);
+    }
+    scope.setFingerprint(["samsung-issues", phase]);
+    scope.setContext("samsung_issues", merged);
+    scope.setContext("android_incoming_answer_ring", merged);
+    Sentry.captureMessage(`${SAMSUNG_ISSUES_EVENT}: ${phase}`, level);
+  });
+}
 
 const incomingRingStartedAtMs = new Map<string, number>();
 const incomingAnswerAttemptAtMs = new Map<string, number>();
@@ -334,6 +415,8 @@ function emitIncomingRingAnomaly(
   const payload = toSerializable({
     phase,
     appState: AppState.currentState,
+    ticket:
+      "Inbound Accept from lock screen / notification banner opens app but does not pick up",
     ...data
   });
 
@@ -342,6 +425,26 @@ function emitIncomingRingAnomaly(
       payload
     )}`
   );
+
+  if (SAMSUNG_ISSUE_ERROR_PHASES.has(phase)) {
+    captureSamsungIssue(phase, payload, "error");
+    const uuid = String(data.callUuid ?? payload.callUuid ?? "").trim().toLowerCase();
+    if (
+      uuid &&
+      (phase === "lock_screen_answer_no_pickup" ||
+        phase === "answer_never_connected") &&
+      !samsungAppOpensNoPickupSent.has(uuid)
+    ) {
+      samsungAppOpensNoPickupSent.add(uuid);
+      captureSamsungIssue("app_opens_no_pickup", payload, "error");
+    }
+    return;
+  }
+
+  if (SAMSUNG_ISSUE_INFO_PHASES.has(phase)) {
+    captureSamsungIssue(phase, payload, "info");
+    return;
+  }
 
   Sentry.withScope((scope) => {
     scope.setLevel("error");
@@ -464,6 +567,7 @@ export function noteIncomingAnswerConnected(
   const key = normalizeIncomingUuid(callUuid);
   clearIncomingAnswerWatchdog(key);
   incomingAnswerAttemptAtMs.delete(key);
+  samsungAppOpensNoPickupSent.delete(key);
   noteIncomingRingTeardown(callUuid, "connected", data);
   androidCallFlowLog("incomingRing", "answer reached CONNECTED", {
     callUuid,

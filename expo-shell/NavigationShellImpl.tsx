@@ -18,6 +18,8 @@ import {
   peekPendingMeetLink,
   setPendingMeetLink
 } from "./meetDeepLink.ts";
+import { ShareIntentProvider } from "expo-share-intent";
+import { ShareIntentDrawerHost } from "features/share/ShareIntentDrawerHost.tsx";
 
 function tick(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0));
@@ -330,9 +332,6 @@ function ShellAppInner({ M }: { M: ShellModules }) {
   const insets = M.useSafeAreaInsets();
   const [currentRouteName, setCurrentRouteName] = useState<string>();
   const isMeetingsRoute = currentRouteName === M.Routes.Meetings;
-  const isLoggedIn = M.useSelector(
-    (s: { authReducer: { isLoggedIn: boolean } }) => s.authReducer.isLoggedIn
-  );
   const hasUser = M.useSelector(
     (s: { userReducer: { user: unknown } }) => s.userReducer.user != null
   );
@@ -439,11 +438,23 @@ function ShellAppInner({ M }: { M: ShellModules }) {
     <>
       <IosCallKitBootstrap useSelector={M.useSelector} />
       <M.SoftphoneProvider>
-        <M.DrawerProvider>{shellContent}</M.DrawerProvider>
+        <M.DrawerProvider>
+          {shellContent}
+          <ShareIntentDrawerHost
+            isLoggedIn={hasUser}
+            rehydratePromise={M.rehydratePromise}
+          />
+        </M.DrawerProvider>
       </M.SoftphoneProvider>
     </>
   ) : (
-    <M.DrawerProvider>{shellContent}</M.DrawerProvider>
+    <M.DrawerProvider>
+      {shellContent}
+      <ShareIntentDrawerHost
+        isLoggedIn={hasUser}
+        rehydratePromise={M.rehydratePromise}
+      />
+    </M.DrawerProvider>
   );
 
   return (
@@ -531,7 +542,14 @@ export default function NavigationShellImpl() {
   const { SafeAreaProvider } = M;
   return (
     <SafeAreaProvider>
-      <ShellApp M={M} />
+      <ShareIntentProvider
+        options={{
+          debug: __DEV__,
+          resetOnBackground: false
+        }}
+      >
+        <ShellApp M={M} />
+      </ShareIntentProvider>
     </SafeAreaProvider>
   );
 }

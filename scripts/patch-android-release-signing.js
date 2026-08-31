@@ -60,7 +60,7 @@ function patchGradleProperties() {
   const storeFile = process.env.MYAPP_UPLOAD_STORE_FILE ?? "voxo.keystore";
   const keyAlias = process.env.MYAPP_UPLOAD_KEY_ALIAS ?? "voxo-android";
   const storePassword =
-    process.env.MYAPP_UPLOAD_STORE_PASSWORD ?? process.env.VOXO_ANDROID_KEYSTORE_PASSWORD ?? "Password1!";
+    process.env.MYAPP_UPLOAD_STORE_PASSWORD ?? process.env.VOXO_ANDROID_KEYSTORE_PASSWORD ?? "";
   const keyPassword =
     process.env.MYAPP_UPLOAD_KEY_PASSWORD ?? process.env.VOXO_ANDROID_KEY_PASSWORD ?? storePassword;
 
