@@ -12,6 +12,7 @@ import Icon from "shared/components/Icon.tsx";
 // Utils & Constants
 import { borderRadius, fontSize, padding } from "core/theme/theme.ts";
 import { ChatMessage, ThreadsNavigationProp } from "features/chat/types.ts";
+import { canEditChatMessage } from "features/chat/utils/chatMessageEdit.ts";
 import { State } from "store/types.ts";
 import { useSendbirdContext } from "features/chat/utils/SendbirdContext.ts";
 import { useDrawer } from "core/drawer/DrawerContext.tsx";
@@ -21,6 +22,11 @@ import { AddReactionDrawer } from "features/chat/components/drawers/AddReactionD
 import { ForwardImageDrawer } from "features/chat/components/drawers/ForwardImageDrawer.tsx";
 import Clipboard from "@react-native-clipboard/clipboard";
 import { isHtml } from "shared/utils/utils.ts";
+import {
+  copyImageToClipboard,
+  saveImageToCameraRoll
+} from "shared/utils/imageModalActions.ts";
+import { FileMessage, MultipleFilesMessage, UserMessage } from "@sendbird/chat/message";
 import { useNavigation } from "@react-navigation/core";
 import { Routes } from "core/navigation/types/types.ts";
 
@@ -56,10 +62,7 @@ export const MessageOptionsDrawer: React.FC<MessageOptionsDrawerProps> = ({
   const isMessageFromCurrentUser =
     message.sender?.userId === user?.id?.toString();
 
-  const canEditMessage =
-    isMessageFromCurrentUser &&
-    message.customType !== "MESSAGE_GIF" &&
-    message.customType !== "MEETING_INVITE";
+  const canEditMessage = canEditChatMessage(message, user?.id);
 
   const confirmDeleteMessage = () => {
     closeDrawer();
@@ -112,6 +115,88 @@ export const MessageOptionsDrawer: React.FC<MessageOptionsDrawerProps> = ({
     message.messageType === "admin" ||
     (typeof message.isAdminMessage === "function" && message.isAdminMessage());
 
+  const getImageCopyUrl = (): string | null => {
+    const isImageMime = (mime?: string, name?: string) => {
+      const type = (mime || "").toLowerCase();
+      const fileName = (name || "").toLowerCase();
+      return (
+        type.startsWith("image/") ||
+        /\.(png|jpe?g|gif|webp|heic|heif|bmp|tiff?)$/i.test(fileName)
+      );
+    };
+
+    if (typeof message.isFileMessage === "function" && message.isFileMessage()) {
+      const fileMessage = message as FileMessage;
+      if (!isImageMime(fileMessage.type, fileMessage.name)) return null;
+      return fileMessage.url || fileMessage.plainUrl || null;
+    }
+
+    if (
+      typeof message.isMultipleFilesMessage === "function" &&
+      message.isMultipleFilesMessage()
+    ) {
+      const files = (message as MultipleFilesMessage).fileInfoList || [];
+      const image = files.find((file) =>
+        isImageMime(file.mimeType, file.fileName)
+      );
+      return image?.url || image?.plainUrl || null;
+    }
+
+    if (message.customType === "MESSAGE_GIF") {
+      const userMessage = message as UserMessage;
+      return (
+        userMessage.metaArrays?.find((meta) => meta.key === "url")
+          ?.value?.[0] || null
+      );
+    }
+
+    return null;
+  };
+
+  const imageCopyUrl = getImageCopyUrl();
+  const canCopyText =
+    message.isUserMessage() && message.customType !== "MESSAGE_GIF";
+  const canCopyImage = Boolean(imageCopyUrl);
+
+  const handleCopy = () => {
+    if (imageCopyUrl) {
+      closeDrawer();
+      void copyImageToClipboard(imageCopyUrl, accessToken);
+      return;
+    }
+
+    if (message.customType === "MEETING_INVITE") {
+      Clipboard.setString(
+        message.metaArrays?.find((meta) => meta.key === "meetURL")
+          ?.value?.[0] ?? ""
+      );
+      toast.success("Meet link copied to clipboard!");
+    } else if (message.message && isHtml(message.message)) {
+      Clipboard.setString(
+        message.message.replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " ")
+      );
+      toast.success("Message copied to clipboard!");
+    } else if (message.message) {
+      Clipboard.setString(message.message);
+      toast.success("Message copied to clipboard!");
+    }
+    closeDrawer();
+    if (Platform.OS === "android" && editor) {
+      setTimeout(() => {
+        editor.blur();
+        setTimeout(() => {
+          editor.focus();
+        }, 100);
+      }, 500);
+    }
+  };
+
+  const handleSaveImage = () => {
+    if (!imageCopyUrl) return;
+    closeDrawer();
+    void saveImageToCameraRoll(imageCopyUrl, accessToken);
+  };
+
   const menuOptions = [
     ...(!isInThread
       ? [
@@ -131,41 +216,21 @@ export const MessageOptionsDrawer: React.FC<MessageOptionsDrawerProps> = ({
           }
         ]
       : []),
-    ...(message.isUserMessage() && message.customType !== "MESSAGE_GIF"
+    ...(canCopyText || canCopyImage
       ? [
           {
             icon: "copy-03",
             text: "Copy",
-            onPress: () => {
-              if (message.customType === "MEETING_INVITE") {
-                Clipboard.setString(
-                  message.metaArrays?.find((meta) => meta.key === "meetURL")
-                    ?.value?.[0] ?? ""
-                );
-                toast.success("Meet link copied to clipboard!");
-              } else if (message.message && isHtml(message.message)) {
-                Clipboard.setString(
-                  message.message
-                    .replace(/<[^>]+>/g, "")
-                    .replace(/&nbsp;/g, " ")
-                );
-                toast.success("Message copied to clipboard!");
-              } else if (message.message) {
-                Clipboard.setString(message.message);
-                toast.success("Message copied to clipboard!");
-              }
-              closeDrawer();
-              // Refocus editor after copy on Android to fix focus issue
-              if (Platform.OS === "android" && editor) {
-                // Wait for drawer animation to complete, then blur and refocus
-                setTimeout(() => {
-                  editor.blur();
-                  setTimeout(() => {
-                    editor.focus();
-                  }, 100);
-                }, 500);
-              }
-            }
+            onPress: handleCopy
+          }
+        ]
+      : []),
+    ...(canCopyImage
+      ? [
+          {
+            icon: "download-cloud-02",
+            text: "Save",
+            onPress: handleSaveImage
           }
         ]
       : []),
@@ -184,13 +249,7 @@ export const MessageOptionsDrawer: React.FC<MessageOptionsDrawerProps> = ({
             icon: "edit-05",
             text: "Edit message",
             onPress: () => {
-              if (setEditing) {
-                console.log("[Edit Button] Setting edit message:", message);
-                console.log("[Edit Button] Message ID:", message.messageId);
-                console.log(
-                  "[Edit Button] Parent Message ID:",
-                  message.parentMessageId
-                );
+              if (setEditing && canEditChatMessage(message, user?.id)) {
                 setEditing(message);
                 closeDrawer();
               } else {
