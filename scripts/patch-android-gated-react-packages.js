@@ -75,20 +75,29 @@ function packageListIncludes(sentinel) {
   return fs.readFileSync(PACKAGE_LIST, "utf8").includes(sentinel);
 }
 
+function escapeRegExp(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function stripManualChatPackages(body) {
   let next = body;
 
   if (next.includes(MARKER)) {
     next = next.replace(
-      new RegExp(`\\s*${MARKER}[\\s\\S]*?(?=\\n\\s*// Packages|\\n\\s*add\\(|\\n\\s*\\})`),
+      new RegExp(
+        `\\s*${escapeRegExp(MARKER)}[\\s\\S]*?(?=\\n\\s*// Packages)`
+      ),
       ""
     );
   }
 
   for (const pkg of CHAT_PACKAGES) {
-    next = next.replace(new RegExp(`\\s*add\\(${pkg.instance}\\)\\n?`, "g"), "");
-    if (!next.includes(pkg.sentinel.replace("Package", ""))) {
-      next = next.replace(new RegExp(`${pkg.importPath}\\n`, "g"), "");
+    next = next.replace(
+      new RegExp(`\\s*add\\(${escapeRegExp(pkg.instance)}\\)\\n?`, "g"),
+      ""
+    );
+    if (!next.includes(`add(${pkg.instance})`)) {
+      next = next.replace(new RegExp(`${escapeRegExp(pkg.importPath)}\\n`, "g"), "");
     }
   }
 
@@ -142,6 +151,7 @@ function patchAndroidGatedReactPackages() {
   }
 
   let body = fs.readFileSync(MAIN_APP, "utf8");
+  const packageListExists = fs.existsSync(PACKAGE_LIST);
   const autolinkedInPackageList = CHAT_PACKAGES.filter((pkg) =>
     packageListIncludes(pkg.sentinel)
   );
@@ -166,7 +176,10 @@ function patchAndroidGatedReactPackages() {
 
   const needed = CHAT_PACKAGES.filter(
     (pkg) =>
-      autolinkingIncludes(pkg.autolinkKey) && !body.includes(`add(${pkg.instance})`)
+      autolinkingIncludes(pkg.autolinkKey) &&
+      packageListExists &&
+      !packageListIncludes(pkg.sentinel) &&
+      !body.includes(`add(${pkg.instance})`)
   );
   if (!needed.length) {
     console.log("[patch-gated-packages] chat packages already in MainApplication");
