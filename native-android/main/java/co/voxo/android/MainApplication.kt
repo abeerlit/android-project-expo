@@ -1,6 +1,7 @@
 package co.voxo.android
 
 import android.app.Application
+import android.content.res.Configuration
 import android.app.NotificationChannel
 import android.app.Notification
 import android.app.NotificationManager
@@ -13,6 +14,7 @@ import android.media.AudioAttributes
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import android.util.Log
 import android.telecom.PhoneAccount
 import android.telecom.PhoneAccountHandle
 import android.telecom.TelecomManager
@@ -20,6 +22,9 @@ import android.telephony.TelephonyManager
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import co.voxo.android.clipboard.VoxoClipboardModulePackage
 import co.voxo.android.calling.module.VoxoDtmfSidetoneModulePackage
+import co.voxo.android.calling.bridge.VoxoCallingModulePackage
+import co.voxo.android.calling.VoxoLinphoneManager
+import co.voxo.android.calling.VoxoSipCredentialsPrefs
 import co.voxo.android.telecom.CallKeepBroadcastReceiver
 import co.voxo.android.notifications.module.AndroidNotificationsModulePackage
 import com.facebook.react.PackageList
@@ -28,10 +33,11 @@ import com.facebook.react.ReactHost
 import com.facebook.react.ReactNativeHost
 import com.facebook.react.ReactPackage
 import com.facebook.react.defaults.DefaultNewArchitectureEntryPoint.load
-import com.facebook.react.defaults.DefaultReactHost.getDefaultReactHost
 import com.facebook.react.defaults.DefaultReactNativeHost
 import com.facebook.react.soloader.OpenSourceMergedSoMapping
 import com.facebook.soloader.SoLoader
+import expo.modules.ApplicationLifecycleDispatcher
+import expo.modules.ReactNativeHostWrapper
 import io.wazo.callkeep.Constants.ACTION_ANSWER_CALL
 import io.wazo.callkeep.Constants.ACTION_END_CALL
 import io.wazo.callkeep.Constants.ACTION_ON_CREATE_CONNECTION_FAILED
@@ -42,7 +48,8 @@ import io.wazo.callkeep.VoiceConnectionService
 
 class MainApplication : Application(), ReactApplication {
 
-  override val reactNativeHost: ReactNativeHost =
+  override val reactNativeHost: ReactNativeHost = ReactNativeHostWrapper(
+      this,
       object : DefaultReactNativeHost(this) {
         override fun getPackages(): List<ReactPackage> =
             PackageList(this).packages.apply {
@@ -50,6 +57,7 @@ class MainApplication : Application(), ReactApplication {
               add(AndroidNotificationsModulePackage())
               add(VoxoDtmfSidetoneModulePackage())
               add(VoxoClipboardModulePackage())
+              add(VoxoCallingModulePackage())
             }
 
         override fun getJSMainModuleName(): String = "index"
@@ -58,10 +66,11 @@ class MainApplication : Application(), ReactApplication {
 
         override val isNewArchEnabled: Boolean = BuildConfig.IS_NEW_ARCHITECTURE_ENABLED
         override val isHermesEnabled: Boolean = BuildConfig.IS_HERMES_ENABLED
-      }
+            }
+  )
 
   override val reactHost: ReactHost
-    get() = getDefaultReactHost(applicationContext, reactNativeHost)
+    get() = ReactNativeHostWrapper.createReactHost(applicationContext, reactNativeHost)
 
   override fun onCreate() {
     super.onCreate()
@@ -74,6 +83,20 @@ class MainApplication : Application(), ReactApplication {
     createNotificationChannels()
     initCallKeep()
     AppForegroundTracker.register(this)
+    startNativeSipIfLoggedIn()
+    ApplicationLifecycleDispatcher.onApplicationCreate(this)
+  }
+
+  override fun onConfigurationChanged(newConfig: Configuration) {
+    super.onConfigurationChanged(newConfig)
+    ApplicationLifecycleDispatcher.onConfigurationChanged(this, newConfig)
+  }
+
+
+  private fun startNativeSipIfLoggedIn() {
+    if (VoxoSipCredentialsPrefs.hasCredentials(this)) {
+      VoxoLinphoneManager.ensureStarted(this)
+    }
   }
 
   private fun createNotificationChannels() {
@@ -98,6 +121,26 @@ class MainApplication : Application(), ReactApplication {
         )
       }
       notificationManager.createNotificationChannel(mainChannel)
+      Log.i(SMS_CHANNEL_TAG, "channelCreated id=voxo-notifications importance=HIGH")
+
+      val smsChannel = NotificationChannel(
+        "voxo-sms-v2",
+        "SMS Messages",
+        NotificationManager.IMPORTANCE_HIGH
+      ).apply {
+        description = "SMS / text message notifications"
+        enableVibration(true)
+        vibrationPattern = longArrayOf(300, 500)
+        setSound(
+          android.provider.Settings.System.DEFAULT_NOTIFICATION_URI,
+          AudioAttributes.Builder()
+            .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+            .build()
+        )
+      }
+      notificationManager.createNotificationChannel(smsChannel)
+      Log.i(SMS_CHANNEL_TAG, "channelCreated id=voxo-sms-v2 importance=HIGH")
 
       // Incoming calls: ring only via IncomingCallRingtonePlayer (channel sound would double-play).
       val incomingCallChannel = NotificationChannel(
@@ -170,8 +213,11 @@ class MainApplication : Application(), ReactApplication {
   }
 
   companion object {
+    /** v2: silent channel — ring is IncomingCallRingtonePlayer only (avoids double ring). */
     const val INCOMING_CALL_CHANNEL_ID = "VOXOCONNECT_INCOMING_CALLS_V2"
     const val ONGOING_CALL_CHANNEL_ID = "VOXOCONNECT_ONGOING_CALLS"
+    /** Filter: adb logcat | grep SMS-NOTIF */
+    private const val SMS_CHANNEL_TAG = "SMS-NOTIF"
 
     var phoneAccountHandle: PhoneAccountHandle? = null
     var telecomManager: TelecomManager? = null

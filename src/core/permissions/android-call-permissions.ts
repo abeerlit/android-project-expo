@@ -2,7 +2,7 @@
  * Expo Android shell only — CallKeep-aligned runtime permission gate.
  * @see android-project-expo (not bare android-project)
  */
-import { NativeModules, PermissionsAndroid, Platform } from "react-native";
+import { PermissionsAndroid, Platform } from "react-native";
 import { Logger } from "shared/utils/Logger.ts";
 
 const logger = new Logger("AndroidCallPermissions: ");
@@ -39,24 +39,6 @@ function permissionLabel(permission: string): string {
   return permission;
 }
 
-function warnIfFullScreenIntentDisabled(): void {
-  try {
-    const Notifications = NativeModules.VoxoConnectAndroidNotifications as {
-      canUseFullScreenIntent?: () => boolean;
-    };
-    if (typeof Notifications?.canUseFullScreenIntent === "function") {
-      const fsi = Notifications.canUseFullScreenIntent();
-      if (!fsi) {
-        logger.warn(
-          "Full-screen incoming-call permission is off — lock screen may show a banner only. Enable it in Settings → Apps → Special app access → Full screen notifications."
-        );
-      }
-    }
-  } catch (e) {
-    logger.warn("canUseFullScreenIntent check failed", e);
-  }
-}
-
 export async function ensureAndroidCallPermissions(): Promise<{
   granted: boolean;
   missing: string[];
@@ -80,7 +62,6 @@ export async function ensureAndroidCallPermissions(): Promise<{
   }
 
   if (missing.length === 0) {
-    warnIfFullScreenIntentDisabled();
     return { granted: true, missing: [] };
   }
 
@@ -92,8 +73,6 @@ export async function ensureAndroidCallPermissions(): Promise<{
   if (stillMissing.length) {
     logger.warn("Still missing:", stillMissing.map(permissionLabel));
   }
-
-  warnIfFullScreenIntentDisabled();
 
   return {
     granted: stillMissing.length === 0,

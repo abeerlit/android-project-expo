@@ -12,7 +12,7 @@ const APP_BUILD = path.join(ROOT, "android", "app", "build.gradle");
 const GRADLE_PROPS = path.join(ROOT, "android", "gradle.properties");
 const APP_KEYSTORE = path.join(ROOT, "android", "app", "voxo.keystore");
 
-const MARKER = "// voxo-release-signing";
+const MARKER = "# voxo-release-signing";
 
 const DEFAULT_SOURCES = [
   path.join(ROOT, "native-resources", "voxo.keystore"),
@@ -57,12 +57,18 @@ function patchGradleProperties() {
   if (!fs.existsSync(GRADLE_PROPS)) return false;
   let body = fs.readFileSync(GRADLE_PROPS, "utf8");
 
-  const storeFile = process.env.MYAPP_UPLOAD_STORE_FILE ?? "voxo.keystore";
-  const keyAlias = process.env.MYAPP_UPLOAD_KEY_ALIAS ?? "voxo-android";
+  const storeFile = process.env.MYAPP_UPLOAD_STORE_FILE || "voxo.keystore";
+  const keyAlias = process.env.MYAPP_UPLOAD_KEY_ALIAS || "voxo-android";
   const storePassword =
-    process.env.MYAPP_UPLOAD_STORE_PASSWORD ?? process.env.VOXO_ANDROID_KEYSTORE_PASSWORD ?? "";
+    process.env.MYAPP_UPLOAD_STORE_PASSWORD || process.env.VOXO_ANDROID_KEYSTORE_PASSWORD || "";
   const keyPassword =
-    process.env.MYAPP_UPLOAD_KEY_PASSWORD ?? process.env.VOXO_ANDROID_KEY_PASSWORD ?? storePassword;
+    process.env.MYAPP_UPLOAD_KEY_PASSWORD || process.env.VOXO_ANDROID_KEY_PASSWORD || storePassword;
+
+  if (!storePassword) {
+    console.warn(
+      "[patch-release-signing] MYAPP_UPLOAD_STORE_PASSWORD is empty — release signing will fail"
+    );
+  }
 
   const block = `${MARKER}
 MYAPP_UPLOAD_STORE_FILE=${storeFile}
@@ -71,11 +77,11 @@ MYAPP_UPLOAD_STORE_PASSWORD=${storePassword}
 MYAPP_UPLOAD_KEY_PASSWORD=${keyPassword}
 `;
 
-  if (body.includes(MARKER)) {
-    body = body.replace(
-      new RegExp(`${MARKER}[\\s\\S]*?(?=\\n#|\\n[a-zA-Z]|$)`),
-      block.trimEnd()
-    );
+  const signingBlockRe =
+    /(?:\/\/|#) voxo-release-signing\n(?:MYAPP_UPLOAD_[A-Z_]+=.*\n?)*/;
+  if (signingBlockRe.test(body) || body.includes("MYAPP_UPLOAD_STORE_FILE=")) {
+    body = body.replace(signingBlockRe, "").replace(/\nMYAPP_UPLOAD_[A-Z_]+=.*$/gm, "");
+    body = `${body.trimEnd()}\n${block}`;
   } else {
     body = `${body.trimEnd()}\n${block}`;
   }
