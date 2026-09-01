@@ -58,7 +58,9 @@ import {
 import {
   formatPreciseTime,
   getDateText,
-  getFileSize
+  getFileSize,
+  isImageAttachment,
+  isValidFileSize
 } from "shared/utils/utils.ts";
 import { useRichEditor } from "features/chat/rich-editor/context/RichEditorContext.ts";
 import { useNavigation } from "@react-navigation/core";
@@ -481,46 +483,76 @@ const MultipleFileMessage = memo(
         <View style={styles.multipleFileContainer}>
         {message.data && <Parser html={message.data} />}
         {message.fileInfoList.map((fileInfo, index) => {
-          const isImage = fileInfo.mimeType?.startsWith("image/") || false;
+          const isImage = isImageAttachment(
+            fileInfo.mimeType,
+            fileInfo.fileName
+          );
           const isLastItem = index === message.fileInfoList.length - 1;
+          const sizeUnknown = !isValidFileSize(fileInfo.fileSize);
+          const showFileLoader =
+            openingFileIndex === index || isPendingSend || sizeUnknown;
 
           if (isImage) {
             const imageUri =
               fileInfo.url || fileInfo.plainUrl || "";
             return (
-              <ImageModal
+              <View
                 key={index}
-                resizeMode="cover"
-                // Android: default true blurs full-screen image (HW texture). iOS ignores.
-                renderToHardwareTextureAndroid={Platform.OS !== "android"}
                 style={[
-                  styles.imageFile,
-                  {
-                    width: IMAGE_SIZE,
-                    height: IMAGE_SIZE,
-                    marginBottom: isLastItem ? 0 : padding.sm
-                  }
+                  styles.imageSendingWrap,
+                  { marginBottom: isLastItem ? 0 : padding.sm }
                 ]}
-                source={{ uri: imageUri }}
-                modalImageStyle={{ backgroundColor: "black" }}
-                modalImageResizeMode="contain"
-                renderHeader={(onClose) => (
-                  <ImageModalHeader
-                    onClose={onClose}
-                    imageUrl={imageUri}
-                    authToken={authToken}
+              >
+                {imageUri ? (
+                  <ImageModal
+                    resizeMode="cover"
+                    // Android: default true blurs full-screen image (HW texture). iOS ignores.
+                    renderToHardwareTextureAndroid={Platform.OS !== "android"}
+                    style={[
+                      styles.imageFile,
+                      {
+                        width: IMAGE_SIZE,
+                        height: IMAGE_SIZE
+                      }
+                    ]}
+                    source={{ uri: imageUri }}
+                    modalImageStyle={{ backgroundColor: "black" }}
+                    modalImageResizeMode="contain"
+                    renderHeader={(onClose) => (
+                      <ImageModalHeader
+                        onClose={onClose}
+                        imageUrl={imageUri}
+                        authToken={authToken}
+                      />
+                    )}
+                    renderImageComponent={(params) =>
+                      renderCachedChatImageModal({
+                        params,
+                        messageId: message.messageId,
+                        fileIndex: index,
+                        remoteUri: imageUri,
+                        authToken
+                      })
+                    }
+                  />
+                ) : (
+                  <View
+                    style={[
+                      styles.imageFile,
+                      {
+                        width: IMAGE_SIZE,
+                        height: IMAGE_SIZE,
+                        backgroundColor: "rgba(0,0,0,0.06)"
+                      }
+                    ]}
                   />
                 )}
-                renderImageComponent={(params) =>
-                  renderCachedChatImageModal({
-                    params,
-                    messageId: message.messageId,
-                    fileIndex: index,
-                    remoteUri: imageUri,
-                    authToken
-                  })
-                }
-              />
+                {isPendingSend || !imageUri ? (
+                  <View style={styles.imageSendingOverlay}>
+                    <ActivityIndicator size="large" color="#FFFFFF" />
+                  </View>
+                ) : null}
+              </View>
             );
           }
 
@@ -535,7 +567,7 @@ const MultipleFileMessage = memo(
                   marginBottom: isLastItem ? 0 : padding.sm
                 }
               ]}
-              disabled={openingFileIndex === index}
+              disabled={openingFileIndex === index || isPendingSend}
               onPress={() =>
                 handleFilePress({
                   url: fileInfo.url || fileInfo?.plainUrl || undefined,
@@ -546,7 +578,7 @@ const MultipleFileMessage = memo(
               }
             >
               <View style={styles.fileInfoContainer}>
-                {openingFileIndex === index ? (
+                {showFileLoader ? (
                   <View style={styles.fileIconLoader}>
                     <ActivityIndicator
                       size="small"
@@ -575,9 +607,11 @@ const MultipleFileMessage = memo(
                     weight="regular"
                     color="color-colors-text-text-tertiary"
                   >
-                    {openingFileIndex === index
-                      ? "Opening..."
-                      : getFileSize(fileInfo.fileSize)}
+                    {isPendingSend
+                      ? "Sending…"
+                      : openingFileIndex === index
+                        ? "Opening..."
+                        : getFileSize(fileInfo.fileSize)}
                   </Text>
                 </View>
               </View>
@@ -669,47 +703,59 @@ const FileMessage = memo(
     }
   };
 
+  const sizeUnknown = !isValidFileSize(message.size);
+  const showFileLoader = isOpeningFile || isPendingSend || sizeUnknown;
+
   // Handle Image Files
-  if (
-    message.type &&
-    typeof message.type === "string" &&
-    message.type.startsWith("image/")
-  ) {
+  if (isImageAttachment(message.type, message.name)) {
     return (
       <View>
         {message.data && <Parser html={message.data} />}
         <View style={styles.imageSendingWrap}>
-          <ImageModal
-            resizeMode="cover"
-            renderToHardwareTextureAndroid={Platform.OS !== "android"}
-            style={[
-              styles.singleImageFile,
-              {
-                width: IMAGE_SIZE,
-                height: IMAGE_SIZE
+          {imagePreviewUri ? (
+            <ImageModal
+              resizeMode="cover"
+              renderToHardwareTextureAndroid={Platform.OS !== "android"}
+              style={[
+                styles.singleImageFile,
+                {
+                  width: IMAGE_SIZE,
+                  height: IMAGE_SIZE
+                }
+              ]}
+              source={{ uri: imagePreviewUri }}
+              modalImageStyle={{ backgroundColor: "black" }}
+              modalImageResizeMode="contain"
+              renderHeader={(onClose) => (
+                <ImageModalHeader
+                  onClose={onClose}
+                  imageUrl={imagePreviewUri}
+                  authToken={authToken}
+                />
+              )}
+              renderImageComponent={(params) =>
+                renderCachedChatImageModal({
+                  params,
+                  messageId: message.messageId,
+                  fileIndex: 0,
+                  remoteUri: imagePreviewUri,
+                  authToken
+                })
               }
-            ]}
-            source={{ uri: imagePreviewUri }}
-            modalImageStyle={{ backgroundColor: "black" }}
-            modalImageResizeMode="contain"
-            renderHeader={(onClose) => (
-              <ImageModalHeader
-                onClose={onClose}
-                imageUrl={imagePreviewUri}
-                authToken={authToken}
-              />
-            )}
-            renderImageComponent={(params) =>
-              renderCachedChatImageModal({
-                params,
-                messageId: message.messageId,
-                fileIndex: 0,
-                remoteUri: imagePreviewUri,
-                authToken
-              })
-            }
-          />
-          {isPendingSend ? (
+            />
+          ) : (
+            <View
+              style={[
+                styles.singleImageFile,
+                {
+                  width: IMAGE_SIZE,
+                  height: IMAGE_SIZE,
+                  backgroundColor: "rgba(0,0,0,0.06)"
+                }
+              ]}
+            />
+          )}
+          {isPendingSend || !imagePreviewUri ? (
             <View style={styles.imageSendingOverlay}>
               <ActivityIndicator size="large" color="#FFFFFF" />
             </View>
@@ -735,7 +781,7 @@ const FileMessage = memo(
         }}
       >
         <View style={styles.fileInfoContainer}>
-          {isOpeningFile || isPendingSend ? (
+          {showFileLoader ? (
             <View style={styles.fileIconLoader}>
               <ActivityIndicator
                 size="small"
