@@ -1,5 +1,6 @@
 import * as Sentry from "@sentry/react-native";
 import Constants from "expo-constants";
+import { Platform } from "react-native";
 
 type SentryExtra = {
   SENTRY_DSN?: string;
@@ -98,6 +99,23 @@ export function setupSentry(): void {
   if (extra.SENTRY_ORG) Sentry.setTag("sentry_org", extra.SENTRY_ORG);
   if (extra.SENTRY_PROJECT) {
     Sentry.setTag("sentry_project", extra.SENTRY_PROJECT);
+  }
+
+  if (Platform.OS === "android") {
+    const c = (Platform.constants ?? {}) as {
+      Brand?: string;
+      Manufacturer?: string;
+      Model?: string;
+      Release?: string;
+    };
+    if (c.Manufacturer) Sentry.setTag("device_manufacturer", c.Manufacturer);
+    if (c.Brand) Sentry.setTag("device_brand", c.Brand);
+    if (c.Model) Sentry.setTag("device_model", c.Model);
+    if (c.Release) Sentry.setTag("android_release", c.Release);
+    const isSamsung =
+      String(c.Manufacturer ?? "").toLowerCase().includes("samsung") ||
+      String(c.Brand ?? "").toLowerCase().includes("samsung");
+    Sentry.setTag("is_samsung", isSamsung ? "true" : "false");
   }
 
   console.log(
