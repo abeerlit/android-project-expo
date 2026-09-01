@@ -90,6 +90,13 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     plugins: [
       "expo-dev-client",
       [
+        "expo-share-intent",
+        {
+          disableIOS: true,
+          disableAndroid: true
+        }
+      ],
+      [
         "expo-image-picker",
         {
           photosPermission: `Allow ${displayName} to access your photos to attach images and videos in chat.`,

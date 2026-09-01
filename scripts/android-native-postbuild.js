@@ -53,6 +53,12 @@ function runPostPrebuildFixes(options = {}) {
   } catch (e) {
     console.warn("[android-native-postbuild] splash theme patch:", e.message);
   }
+  try {
+    require("./patch-android-share-receiver.js").patchAndroidShareReceiver();
+  } catch (e) {
+    console.warn("[android-native-postbuild] share receiver:", e.message);
+  }
+
   const chatNative = isTruthy("EXPO_PUBLIC_CHAT_NATIVE");
   if (chatNative) {
     try {

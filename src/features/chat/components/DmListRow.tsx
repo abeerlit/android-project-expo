@@ -30,9 +30,10 @@ import {
 
 type DmListRowProps = {
   channel: FilteredDMChannel;
+  onPress?: () => void;
 };
 
-export const DmListRow = ({ channel }: DmListRowProps) => {
+export const DmListRow = ({ channel, onPress }: DmListRowProps) => {
   const theme = useTheme();
   const navigation = useNavigation<ChatNavigationProp>();
   const { accessToken } = useSelector(({ authReducer }: State) => authReducer);
@@ -139,7 +140,9 @@ export const DmListRow = ({ channel }: DmListRowProps) => {
     <TouchableOpacity
       style={[channelListRowStyles.containerStyle]}
       onPress={() =>
-        navigation.navigate(Routes.Chat, { channelUrl: channel.url })
+        onPress
+          ? onPress()
+          : navigation.navigate(Routes.Chat, { channelUrl: channel.url })
       }
     >
       {/* Profile Picture - Fixed width container for consistent alignment */}
