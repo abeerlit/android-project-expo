@@ -24,6 +24,7 @@ interface SearchBarProps extends Omit<TextInputProps, "placeholderTextColor"> {
   cancelTextColor?: string;
   onFocusChange?: (isFocused: boolean) => void;
   onCancel?: () => void; // <-- added
+  showCancel?: boolean;
 }
 
 export function SearchBar({
@@ -38,6 +39,7 @@ export function SearchBar({
   onFocusChange,
   onCancel,
   onChangeText,
+  showCancel = true,
   ...props
 }: SearchBarProps) {
   const theme = useTheme();
@@ -91,7 +93,7 @@ export function SearchBar({
           {...props}
         />
       </Pressable>
-      {isFocused && (
+      {showCancel && isFocused && (
         <TouchableOpacity onPress={handleCancel} hitSlop={10}>
           <Text
             size={fontSize.sm}
